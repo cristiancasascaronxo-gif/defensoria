@@ -6187,7 +6187,7 @@ function PatrociniosView({
         gap: 12,
         flexWrap: "wrap"
       }
-    }, p.tipoCausa && /*#__PURE__*/React.createElement("span", null, p.tipoCausa), p.expediente && /*#__PURE__*/React.createElement("span", null, "Exp. ", p.expediente), p.dni && /*#__PURE__*/React.createElement("span", null, "DNI ", p.dni), plazosAb.length > 0 && /*#__PURE__*/React.createElement("span", null, plazosAb.length, " plazo", plazosAb.length !== 1 ? "s" : ""), pasosAb.length > 0 && /*#__PURE__*/React.createElement("span", null, pasosAb.length, " paso", pasosAb.length !== 1 ? "s" : "", " pendiente", pasosAb.length !== 1 ? "s" : "")), p._m.donde && /*#__PURE__*/React.createElement("div", {
+    }, p.tipoCausa && /*#__PURE__*/React.createElement("span", null, p.tipoCausa), p.expediente && /*#__PURE__*/React.createElement("span", null, "Exp./SAC ", p.expediente), p.dni && /*#__PURE__*/React.createElement("span", null, "DNI ", p.dni), plazosAb.length > 0 && /*#__PURE__*/React.createElement("span", null, plazosAb.length, " plazo", plazosAb.length !== 1 ? "s" : ""), pasosAb.length > 0 && /*#__PURE__*/React.createElement("span", null, pasosAb.length, " paso", pasosAb.length !== 1 ? "s" : "", " pendiente", pasosAb.length !== 1 ? "s" : "")), p._m.donde && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 11,
         color: "var(--gold)",
@@ -6697,7 +6697,13 @@ function PatrociniosView({
     plazosDe: plazosDe,
     pasosDe: pasosDe,
     otroTotal: tab === "esc1" ? n2 : n1,
-    propioTotal: tab === "esc1" ? n1 : n2
+    propioTotal: tab === "esc1" ? n1 : n2,
+    onOpen: id => {
+      setTab("lista");
+      setFiltroEsc("");
+      setSearch("");
+      setExpanded(id);
+    }
   }), tab === "plazos" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
@@ -6884,7 +6890,7 @@ function PatrociniosView({
     onChange: v => f("tipoCausa", v),
     placeholder: "Guarda, Divorcio, Alimentos..."
   }), /*#__PURE__*/React.createElement(Input, {
-    label: "Expediente",
+    label: "Expediente / SAC",
     value: form.expediente,
     onChange: v => f("expediente", v)
   })), /*#__PURE__*/React.createElement(Row2, null, /*#__PURE__*/React.createElement(Input, {
@@ -7361,7 +7367,8 @@ function EscritorioDashboard({
   plazosDe,
   pasosDe,
   otroTotal,
-  propioTotal
+  propioTotal,
+  onOpen
 }) {
   const col = ESC_COLOR[esc];
   const bg = ESC_COLOR_BG[esc];
@@ -7693,9 +7700,11 @@ function EscritorioDashboard({
     }
   }, notasRecientes.map((b, i) => /*#__PURE__*/React.createElement("div", {
     key: b.id || i,
+    onClick: () => onOpen && onOpen(b.patrocinio.id),
     style: {
       borderLeft: "2px solid " + col,
-      paddingLeft: 12
+      paddingLeft: 12,
+      cursor: onOpen ? "pointer" : "default"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7734,15 +7743,22 @@ function EscritorioDashboard({
     }
   }, recientes.map(p => /*#__PURE__*/React.createElement("div", {
     key: p.id,
+    onClick: () => onOpen && onOpen(p.id),
     style: {
       display: "flex",
       alignItems: "center",
       gap: 10,
       fontSize: 12,
       color: "var(--text)",
-      padding: "6px 0",
-      borderBottom: "1px solid var(--border)"
-    }
+      padding: "7px 8px",
+      borderBottom: "1px solid var(--border)",
+      cursor: onOpen ? "pointer" : "default",
+      borderRadius: 6
+    },
+    onMouseEnter: e => {
+      if (onOpen) e.currentTarget.style.background = "var(--hover)";
+    },
+    onMouseLeave: e => e.currentTarget.style.background = ""
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       flex: 1
