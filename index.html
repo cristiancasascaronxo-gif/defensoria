@@ -8,9 +8,10 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; background: #f0f2f5; }
-    #loading { display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 16px; }
-    #loading h2 { font-family: Georgia, serif; color: #1a2744; font-size: 22px; }
-    #loading p { color: #666; font-size: 14px; }
+    #loading { display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 14px; }
+    #loading h2 { font-family: Georgia, serif; color: #000; font-size: 24px; margin-bottom: 2px; }
+    #loading .by { color: #000; font-size: 13px; letter-spacing: 0.02em; }
+    #loading p { color: #666; font-size: 13px; margin-top: 6px; }
     .spinner { width: 40px; height: 40px; border: 3px solid #e0e0e0; border-top-color: #1a2744; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes slideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -24,6 +25,7 @@
   <div id="loading">
     <div class="spinner"></div>
     <h2>DefensorIA</h2>
+    <div class="by">by Cristian Casas Caro</div>
     <p>Cargando aplicación...</p>
   </div>
   <div id="root"></div>
@@ -572,6 +574,36 @@ const MOTIVOS_DESVIO = [{
 }];
 const PASSWORD_TRANSFER = "thereisnotry";
 
+// ── CLASIFICACION DE ESTADO DE LIBERTAD (por badges) ──────
+const BADGES_PRIVADO = ["s_detenido", "s_domicil", "pris_prev"];
+const BADGES_LIBRE = ["s_libertad", "s_excarc", "s_sobreseido", "s_absuelto", "s_cond_sus"];
+const estadoLibertad = p => {
+  const b = p.badges || [];
+  if (BADGES_PRIVADO.some(x => b.includes(x))) return "privado";
+  if (p.estado === "detenido") return "privado";
+  if (BADGES_LIBRE.some(x => b.includes(x))) return "libre";
+  if (["excarcelado", "libertad", "sobreseido"].includes(p.estado)) return "libre";
+  return "sin";
+};
+const contarEstados = presos => {
+  const out = {
+    privado: 0,
+    libre: 0,
+    sin: 0,
+    up: 0,
+    domiciliaria: 0
+  };
+  (presos || []).filter(p => !p.archivado).forEach(p => {
+    const e = estadoLibertad(p);
+    out[e]++;
+    if (e === "privado") {
+      const b = p.badges || [];
+      if (b.includes("s_domicil")) out.domiciliaria++;else out.up++;
+    }
+  });
+  return out;
+};
+
 // ─────────────────────────────────────────────────────────
 // CONTEXT
 // ─────────────────────────────────────────────────────────
@@ -1054,7 +1086,8 @@ function Dashboard({
   setView,
   openModal,
   reload,
-  cfg
+  cfg,
+  irA
 }) {
   const {
     toast
@@ -1063,7 +1096,7 @@ function Dashboard({
   const [gsearch, setGsearch] = useState("");
   const [limpiezaOpen, setLimpiezaOpen] = useState(false);
   const noArch = arr => (arr || []).filter(x => !x.archivado);
-  const detenidos = noArch(data.presos).filter(p => p.estado === "detenido");
+  const est = contarEstados(data.presos);
   const tareasUrg = noArch(data.tareas).filter(t => t.estado !== "completada").sort((a, b) => ({
     alta: 0,
     media: 1,
@@ -1149,31 +1182,31 @@ function Dashboard({
     };
     noArch(data.patrocinios).forEach(p => {
       const s = scoreDe(p, [[60, p.nombre, null], [70, p.dni, "DNI"], [55, p.expediente, "expediente"], [30, p.tipoCausa, "tipo"], [25, p.contraparte, "contraparte"], [15, p.notas, "notas"]], p.vinculadas);
-      if (s) push(s[0], "PATROCINIO", ESC_COLOR[String(p.escritorio || "1")], p.nombre, (p.tipoCausa || "") + (p.expediente ? " · Exp. " + p.expediente : "") + " · " + escLabelCorto(p.escritorio, cfg), s[1], () => setView("patrocinios"));
+      if (s) push(s[0], "PATROCINIO", ESC_COLOR[String(p.escritorio || "1")], p.nombre, (p.tipoCausa || "") + (p.expediente ? " · Exp. " + p.expediente : "") + " · " + escLabelCorto(p.escritorio, cfg), s[1], () => irA("patrocinios", p.id));
     });
     noArch(data.presos).forEach(p => {
       const s = scoreDe(p, [[60, p.nombre, null], [70, p.dni, "DNI"], [65, p.sac, "SAC"], [30, p.delito, "delito"], [20, p.juzgado, "juzgado"], [15, p.situacionActual, "situación"]]);
-      if (s) push(s[0], "IMPUTADO", "var(--accent)", p.nombre, (p.delito || "") + (p.sac ? " · SAC " + p.sac : ""), s[1], () => setView("presos"));
+      if (s) push(s[0], "IMPUTADO", "var(--accent)", p.nombre, (p.delito || "") + (p.sac ? " · SAC " + p.sac : ""), s[1], () => irA("presos", p.id));
     });
     noArch(data.tareas).forEach(t => {
       const s = scoreDe(t, [[50, t.titulo, null], [45, t.imputado, "imputado"], [55, t.sac, "SAC"], [15, t.notas, "notas"]]);
-      if (s) push(s[0], "TAREA", "#e67e22", t.titulo, (t.imputado || "") + (t.vencimiento ? " · vence " + fd(t.vencimiento) : ""), s[1], () => setView("tareas"));
+      if (s) push(s[0], "TAREA", "#e67e22", t.titulo, (t.imputado || "") + (t.vencimiento ? " · vence " + fd(t.vencimiento) : ""), s[1], () => irA("tareas", t.id));
     });
     noArch(data.vistas).forEach(v => {
       const s = scoreDe(v, [[50, v.titulo, null], [45, v.imputado, "imputado"], [55, v.sac, "SAC"], [20, v.juzgado, "juzgado"]]);
-      if (s) push(s[0], "VISTA", "#3498db", v.titulo, (v.imputado || "") + (v.fechaVencimiento ? " · " + fd(v.fechaVencimiento) : ""), s[1], () => setView("vistas"));
+      if (s) push(s[0], "VISTA", "#3498db", v.titulo, (v.imputado || "") + (v.fechaVencimiento ? " · " + fd(v.fechaVencimiento) : ""), s[1], () => irA("vistas", v.id));
     });
     noArch(data.escritos).forEach(e => {
       const s = scoreDe(e, [[50, e.titulo, null], [45, e.imputado, "imputado"], [55, e.sac, "SAC"], [15, e.descripcion, "descripción"]]);
-      if (s) push(s[0], "ESCRITO", "var(--purple)", e.titulo, (e.imputado || "") + " · " + (e.status || ""), s[1], () => setView("escritos"));
+      if (s) push(s[0], "ESCRITO", "var(--purple)", e.titulo, (e.imputado || "") + " · " + (e.status || ""), s[1], () => irA("escritos", e.id));
     });
     noArch(data.vlGlobal).forEach(v => {
       const s = scoreDe(v, [[50, v.nombre, null], [55, v.sac, "SAC"], [20, v.unidad, "unidad"]]);
-      if (s) push(s[0], "VIDEOLLAMADA", "#9b59b6", v.nombre, fd(v.fecha) + (v.hora ? " " + v.hora : ""), s[1], () => setView("videollamadas"));
+      if (s) push(s[0], "VIDEOLLAMADA", "#9b59b6", v.nombre, fd(v.fecha) + (v.hora ? " " + v.hora : ""), s[1], () => irA("videollamadas", v.id));
     });
     noArch(data.novedades).forEach(n => {
       const s = scoreDe(n, [[45, n.titulo, null], [45, n.imputado, "imputado"], [15, n.descripcion, "descripción"]]);
-      if (s) push(s[0], "NOVEDAD", "#16a085", n.titulo, fd(n.fecha), s[1], () => setView("novedades"));
+      if (s) push(s[0], "NOVEDAD", "#16a085", n.titulo, fd(n.fecha), s[1], () => irA("novedades", n.id));
     });
     return res.sort((a, b) => b.score - a.score).slice(0, 25);
   };
@@ -1520,8 +1553,8 @@ function Dashboard({
     }
   }, /*#__PURE__*/React.createElement(StatCard, {
     label: "Imputados",
-    value: data.presos?.length || 0,
-    sub: `${detenidos.length} detenidos · ${(data.presos?.length || 0) - detenidos.length} en libertad`,
+    value: noArch(data.presos).length,
+    sub: est.privado + " privados de libertad · " + est.libre + " en libertad" + (est.sin ? " · " + est.sin + " sin clasificar" : ""),
     onClick: () => setView("presos")
   }), /*#__PURE__*/React.createElement(StatCard, {
     label: "Escritos en curso",
@@ -2085,7 +2118,9 @@ const STATUS_COLORS = {
 // ─────────────────────────────────────────────────────────
 function PresosView({
   data,
-  reload
+  reload,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -2104,6 +2139,8 @@ function PresosView({
   if (activeFilters.length > 0) {
     list = list.filter(p => activeFilters.every(fid => (p.badges || []).includes(fid)));
   }
+  const focoItem = foco ? (data.presos || []).find(p => String(p.id) === String(foco)) : null;
+  if (focoItem) list = [focoItem];
   const toggleFilter = bid => setActiveFilters(prev => prev.includes(bid) ? prev.filter(x => x !== bid) : [...prev, bid]);
   const openNew = () => {
     setForm({
@@ -2193,7 +2230,10 @@ function PresosView({
     }
   }, "(", list.length, ")")), /*#__PURE__*/React.createElement(Btn, {
     onClick: openNew
-  }, "+ Nuevo imputado")), /*#__PURE__*/React.createElement("input", {
+  }, "+ Nuevo imputado")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.nombre,
+    onClear: limpiarFoco
+  }), /*#__PURE__*/React.createElement("input", {
     value: search,
     onChange: e => setSearch(e.target.value),
     placeholder: "Buscar por nombre, SAC, delito...",
@@ -2742,7 +2782,9 @@ const InfoRow = ({
 // ─────────────────────────────────────────────────────────
 function EscritosView({
   data,
-  reload
+  reload,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -2758,6 +2800,8 @@ function EscritosView({
   let list = data.escritos || [];
   if (filter !== "todos") list = list.filter(e => e.status === filter);
   list = [...list].sort((a, b) => (b.fechaCreacion || "").localeCompare(a.fechaCreacion || ""));
+  const focoItem = foco ? (data.escritos || []).find(x => String(x.id) === String(foco)) : null;
+  if (focoItem) list = [focoItem];
   const openNew = () => {
     setForm({
       status: "en_proceso",
@@ -2839,7 +2883,10 @@ function EscritosView({
     }
   }, "Escritos en Curso"), /*#__PURE__*/React.createElement(Btn, {
     onClick: openNew
-  }, "+ Nuevo escrito")), /*#__PURE__*/React.createElement("div", {
+  }, "+ Nuevo escrito")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.titulo,
+    onClear: limpiarFoco
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -3059,7 +3106,9 @@ function EscritosView({
 // ─────────────────────────────────────────────────────────
 function TareasView({
   data,
-  reload
+  reload,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -3096,7 +3145,9 @@ function TareasView({
   // Search applies across all
   const searchLower = search.toLowerCase();
   const matchSearch = t => !search || String(t.titulo || "").toLowerCase().includes(searchLower) || String(t.imputado || "").toLowerCase().includes(searchLower) || String(t.sac || "").includes(search) || String(t.notas || "").toLowerCase().includes(searchLower);
-  const pendientesFiltradas = pendientes.filter(t => matchSearch(t) && (!prioFilter || t.prioridad === prioFilter));
+  let pendientesFiltradas = pendientes.filter(t => matchSearch(t) && (!prioFilter || t.prioridad === prioFilter));
+  const focoItem = foco ? allTareas.find(t => String(t.id) === String(foco)) : null;
+  if (focoItem) pendientesFiltradas = [focoItem];
 
   // Group completadas by fechaCompletada
   const historial = {};
@@ -3372,7 +3423,10 @@ function TareasView({
     }
   }, "Tareas"), /*#__PURE__*/React.createElement(Btn, {
     onClick: openNew
-  }, "+ Nueva tarea")), /*#__PURE__*/React.createElement("input", {
+  }, "+ Nueva tarea")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.titulo,
+    onClear: limpiarFoco
+  }), /*#__PURE__*/React.createElement("input", {
     value: search,
     onChange: e => setSearch(e.target.value),
     placeholder: "Buscar por título, imputado, SAC, notas...",
@@ -3588,7 +3642,9 @@ function TareasView({
 }
 function VistasView({
   data,
-  reload
+  reload,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -3604,6 +3660,8 @@ function VistasView({
   let list = data.vistas || [];
   if (filter !== "todos") list = list.filter(v => v.estado === filter);
   list = [...list].sort((a, b) => a.fechaVencimiento > b.fechaVencimiento ? 1 : -1);
+  const focoItem = foco ? (data.vistas || []).find(x => String(x.id) === String(foco)) : null;
+  if (focoItem) list = [focoItem];
   const save = async () => {
     if (!String(form.titulo || '').trim()) {
       toast("Título requerido", "warn");
@@ -3678,7 +3736,10 @@ function VistasView({
       });
       setModalOpen(true);
     }
-  }, "+ Nueva vista")), /*#__PURE__*/React.createElement("div", {
+  }, "+ Nueva vista")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.titulo,
+    onClear: limpiarFoco
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -3840,7 +3901,9 @@ function VistasView({
 }
 function NovedadesView({
   data,
-  reload
+  reload,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -3852,7 +3915,9 @@ function NovedadesView({
     ...p,
     [k]: v
   }));
-  const list = [...(data.novedades || [])].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  let list = [...(data.novedades || [])].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  const focoItem = foco ? (data.novedades || []).find(x => String(x.id) === String(foco)) : null;
+  if (focoItem) list = [focoItem];
   const save = async () => {
     if (!String(form.titulo || '').trim()) {
       toast("Título requerido", "warn");
@@ -3920,7 +3985,10 @@ function NovedadesView({
       });
       setModalOpen(true);
     }
-  }, "+ Nueva novedad")), /*#__PURE__*/React.createElement("div", {
+  }, "+ Nueva novedad")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.titulo,
+    onClear: limpiarFoco
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -4069,7 +4137,9 @@ function NovedadesView({
 // ─────────────────────────────────────────────────────────
 function VideollamadasView({
   data,
-  reload
+  reload,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -4091,6 +4161,8 @@ function VideollamadasView({
   let list = data.vlGlobal || [];
   if (filter !== "todos") list = list.filter(v => v.estado === filter);
   list = [...list].sort((a, b) => ((a.fecha || "") + (a.hora || "")).localeCompare((b.fecha || "") + (b.hora || "")));
+  const focoItem = foco ? (data.vlGlobal || []).find(x => String(x.id) === String(foco)) : null;
+  if (focoItem) list = [focoItem];
   const changeStatus = async (v, estado) => {
     try {
       await api.update("vlGlobal", v.id, {
@@ -4294,7 +4366,10 @@ function VideollamadasView({
     }
   }, "📨 Solicitar VL"), /*#__PURE__*/React.createElement(Btn, {
     onClick: () => setImportModal(true)
-  }, "📧 Importar mail de Karina"))), /*#__PURE__*/React.createElement("div", {
+  }, "📧 Importar mail de Karina")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.nombre,
+    onClear: limpiarFoco
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -5172,6 +5247,161 @@ function CalendarAlerts() {
 // ─────────────────────────────────────────────────────────
 // PATROCINIOS VIEW
 // ─────────────────────────────────────────────────────────
+// ── Iconos SVG ──
+const Ico = ({
+  d,
+  size = 15,
+  color = "currentColor",
+  style
+}) => /*#__PURE__*/React.createElement("svg", {
+  width: size,
+  height: size,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: color,
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  style: {
+    verticalAlign: "-2px",
+    flexShrink: 0,
+    ...(style || {})
+  }
+}, d);
+const IcoNota = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M4 4h16v12l-4 4H4z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M16 20v-4h4"
+}));
+const IcoReloj = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "9"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M12 7v5l3 2"
+}));
+const IcoLista = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M9 6h11M9 12h11M9 18h11"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"
+}));
+const IcoEditar = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M4 20h4l10-10-4-4L4 16z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M14 6l4 4"
+}));
+const IcoHist = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "9"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M12 7v5l4 2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M3 12a9 9 0 0 1 3-6.7"
+}));
+const IcoTransf = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M4 8h14l-3-3M20 16H6l3 3"
+}));
+const IcoArchivo = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("rect", {
+  x: "3",
+  y: "4",
+  width: "18",
+  height: "4",
+  rx: "1"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M5 8v11h14V8"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M10 12h4"
+}));
+const IcoTel = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"
+}));
+const IcoCuadro = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("rect", {
+  x: "4",
+  y: "4",
+  width: "16",
+  height: "16",
+  rx: "2"
+}));
+const IcoBuscar = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("circle", {
+  cx: "11",
+  cy: "11",
+  r: "7"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M20 20l-3.5-3.5"
+}));
+const IcoMas = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M12 5v14M5 12h14"
+}));
+const IcoCandado = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("rect", {
+  x: "5",
+  y: "11",
+  width: "14",
+  height: "9",
+  rx: "2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M8 11V8a4 4 0 0 1 8 0v3"
+}));
+const IcoCheck = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M5 12l5 5L20 7"
+}));
+
+// ── Traduccion del historial a castellano legible ──
+const historialTexto = (h, cfg) => {
+  const fecha = new Date(h.fecha).toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+  const esc = n => n ? escLabelCorto(n, cfg) : "—";
+  switch (h.accion) {
+    case "alta":
+      {
+        let t = "Dado de alta en " + esc(h.escritorio);
+        if (h.por) t += ", cargado desde " + esc(h.por);
+        if (h.motivo) {
+          const m = MOTIVOS_DESVIO.find(x => x.value === h.motivo);
+          t += ". Se apartó del turno (correspondía a " + esc(h.sugerido) + "): " + (m ? m.label.toLowerCase() : h.motivo);
+        }
+        return {
+          fecha,
+          texto: t,
+          alerta: !!h.motivo
+        };
+      }
+    case "transferencia":
+      return {
+        fecha,
+        texto: "Transferido de " + esc(h.desde) + " a " + esc(h.hacia) + (h.por ? ", por " + esc(h.por) : ""),
+        alerta: true
+      };
+    case "error":
+      return {
+        fecha,
+        texto: "Marcado como error de carga. Dejó de contar para el balance.",
+        alerta: true
+      };
+    case "archivado":
+      return {
+        fecha,
+        texto: "Archivado",
+        alerta: false
+      };
+    case "nota":
+      return {
+        fecha,
+        texto: "Nota agregada a la bitácora",
+        alerta: false
+      };
+    default:
+      return {
+        fecha,
+        texto: h.accion,
+        alerta: false
+      };
+  }
+};
+
 // ─────────────────────────────────────────────────────────
 // PATROCINIOS — Sistema de escritorios con balance
 // ─────────────────────────────────────────────────────────
@@ -5179,7 +5409,9 @@ function PatrociniosView({
   data,
   reload,
   cfg,
-  reloadCfg
+  reloadCfg,
+  foco,
+  limpiarFoco
 }) {
   const {
     toast
@@ -5195,6 +5427,11 @@ function PatrociniosView({
   const [transferPwd, setTransferPwd] = useState("");
   const [plazoOpen, setPlazoOpen] = useState(null);
   const [plazoForm, setPlazoForm] = useState({});
+  const [pasoOpen, setPasoOpen] = useState(null);
+  const [pasoForm, setPasoForm] = useState({});
+  const [notaOpen, setNotaOpen] = useState(null);
+  const [notaTexto, setNotaTexto] = useState("");
+  const [histOpen, setHistOpen] = useState(null);
   const [cfgOpen, setCfgOpen] = useState(false);
   const [miEscritorio, setMiEscritorio] = useState(null);
   const f = (k, v) => setForm(p => ({
@@ -5205,10 +5442,12 @@ function PatrociniosView({
     ...p,
     [k]: v
   }));
+  const sf = (k, v) => setPasoForm(p => ({
+    ...p,
+    [k]: v
+  }));
   const inhabiles = data.inhabiles || [];
   const cargaInicial = String(cfg?.carga_inicial) === "TRUE";
-
-  // ── Escritorio de quien usa (por navegador) ──
   useEffect(() => {
     try {
       const saved = window.name && window.name.indexOf("esc:") === 0 ? window.name.slice(4) : null;
@@ -5218,17 +5457,13 @@ function PatrociniosView({
   const elegirEscritorio = num => {
     setMiEscritorio(num);
     try {
-      window.name = "esc:" + num;
+      window.name = num ? "esc:" + num : "";
     } catch (e) {}
   };
-
-  // ── Datos base ──
   const todos = (data.patrocinios || []).filter(p => !p.archivado);
   const cuentan = todos.filter(p => p.cuentaBalance !== false);
   const n1 = cuentan.filter(p => String(p.escritorio) === "1").length;
   const n2 = cuentan.filter(p => String(p.escritorio) === "2").length;
-
-  // ── Turno sugerido: va a la que tiene menos; empate alterna ──
   const calcTurno = () => {
     if (n1 < n2) return "1";
     if (n2 < n1) return "2";
@@ -5236,14 +5471,12 @@ function PatrociniosView({
   };
   const turno = calcTurno();
   const dif = Math.abs(n1 - n2);
-
-  // ── Busqueda ampliada ──
   const coincide = (p, q) => {
     if (!q) return {
       hit: true,
       donde: null
     };
-    const campos = [["nombre", p.nombre], ["DNI", p.dni], ["expediente", p.expediente], ["carátula", p.caratula], ["tipo", p.tipoCausa], ["juzgado", p.juzgado], ["contraparte", p.contraparte], ["notas", p.notas]];
+    const campos = [["nombre", p.nombre], ["DNI", p.dni], ["expediente", p.expediente], ["tipo", p.tipoCausa], ["juzgado", p.juzgado], ["contraparte", p.contraparte], ["notas", p.notas]];
     for (const [k, v] of campos) if (v && cercaDe(v, q)) return {
       hit: true,
       donde: k === "nombre" ? null : k + ": " + v
@@ -5252,6 +5485,12 @@ function PatrociniosView({
       if (cercaDe(vin.nombre, q) || vin.dni && String(vin.dni).includes(q)) return {
         hit: true,
         donde: vin.nombre + (vin.vinculo ? " — " + vin.vinculo : "")
+      };
+    }
+    for (const b of p.bitacora || []) {
+      if (cercaDe(b.texto, q)) return {
+        hit: true,
+        donde: "bitácora: " + String(b.texto).slice(0, 60)
       };
     }
     return {
@@ -5265,8 +5504,17 @@ function PatrociniosView({
   })).filter(p => p._m.hit);
   if (filtroEsc) lista = lista.filter(p => String(p.escritorio) === filtroEsc);
   lista.sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || "")));
-
-  // ── Alta / edicion ──
+  const focoItem = foco ? todos.find(p => String(p.id) === String(foco)) : null;
+  if (focoItem) lista = [{
+    ...focoItem,
+    _m: {
+      hit: true,
+      donde: null
+    }
+  }];
+  useEffect(() => {
+    if (focoItem) setExpanded(focoItem.id);
+  }, [foco]);
   const openNew = () => {
     if (!miEscritorio) {
       toast("Primero indicá desde qué escritorio trabajás", "warn");
@@ -5281,31 +5529,38 @@ function PatrociniosView({
       cargadoPor: miEscritorio,
       vinculadas: [],
       plazos: [],
-      historial: []
+      pasos: [],
+      bitacora: [],
+      historial: [],
+      _esNuevo: true
     });
     setModalOpen(true);
   };
-
-  // Deteccion de patrocinado que vuelve (por DNI)
   const previoMismoDni = form.dni ? todos.find(p => p.dni && String(p.dni) === String(form.dni) && p.id !== form.id) : null;
   const save = async () => {
     if (!String(form.nombre || "").trim()) {
-      toast("Nombre requerido", "warn");
+      toast("Falta el nombre o la carátula", "warn");
       return;
     }
     if (!form.escritorio) {
       toast("Indicá a qué escritorio corresponde", "warn");
       return;
     }
-    const desvio = form.turnoSugerido && String(form.escritorio) !== String(form.turnoSugerido);
+    const desvio = form._esNuevo && form.turnoSugerido && String(form.escritorio) !== String(form.turnoSugerido);
     if (desvio && !form.motivoDesvio) {
       toast("Indicá el motivo del cambio de escritorio", "warn");
       return;
     }
     setSaving(true);
     try {
+      const limpio = {
+        ...form
+      };
+      delete limpio._esNuevo;
       if (form.id) {
-        await api.update("patrocinios", form.id, form);
+        const orig = todos.find(p => p.id === form.id);
+        limpio.escritorio = orig ? orig.escritorio : form.escritorio;
+        await api.update("patrocinios", form.id, limpio);
       } else {
         const hist = [{
           fecha: new Date().toISOString(),
@@ -5316,7 +5571,7 @@ function PatrociniosView({
           motivo: form.motivoDesvio || null
         }];
         await api.create("patrocinios", {
-          ...form,
+          ...limpio,
           historial: hist
         });
         if (!cargaInicial) await api.setConfig("ultimo_turno", form.escritorio);
@@ -5324,7 +5579,7 @@ function PatrociniosView({
       setModalOpen(false);
       await reload("patrocinios");
       if (reloadCfg) await reloadCfg();
-      toast(desvio ? "Guardado — desvío registrado" : "Guardado");
+      toast(desvio ? "Guardado. El desvío quedó registrado" : "Guardado");
     } catch (e) {
       toast(e.message, "error");
     }
@@ -5346,7 +5601,7 @@ function PatrociniosView({
     toast("Archivado");
   };
   const marcarError = async p => {
-    if (!confirm("¿Marcar como cargado por error? Se descuenta del balance.")) return;
+    if (!confirm("¿Marcar como error de carga? Deja de contar para el balance.")) return;
     const hist = [...(p.historial || []), {
       fecha: new Date().toISOString(),
       accion: "error",
@@ -5359,10 +5614,8 @@ function PatrociniosView({
       historial: hist
     });
     await reload("patrocinios");
-    toast("Marcado como error — descontado del balance");
+    toast("Ya no cuenta para el balance");
   };
-
-  // ── Transferencia con password ──
   const doTransfer = async () => {
     if (transferPwd !== PASSWORD_TRANSFER) {
       toast("Contraseña incorrecta", "error");
@@ -5385,7 +5638,36 @@ function PatrociniosView({
     setTransferOpen(null);
     setTransferPwd("");
     await reload("patrocinios");
-    toast("Transferido a " + escLabelCorto(destino, cfg) + " — balance ajustado");
+    toast("Transferido a " + escLabelCorto(destino, cfg) + ". Balance ajustado");
+  };
+
+  // ── Bitacora ──
+  const saveNota = async () => {
+    const p = notaOpen;
+    if (!String(notaTexto).trim()) {
+      toast("Escribí algo primero", "warn");
+      return;
+    }
+    setSaving(true);
+    try {
+      const entrada = {
+        id: uid(),
+        fecha: today(),
+        texto: notaTexto.trim(),
+        por: miEscritorio
+      };
+      await api.update("patrocinios", p.id, {
+        ...p,
+        bitacora: [entrada, ...(p.bitacora || [])]
+      });
+      setNotaOpen(null);
+      setNotaTexto("");
+      await reload("patrocinios");
+      toast("Nota agregada");
+    } catch (e) {
+      toast(e.message, "error");
+    }
+    setSaving(false);
   };
 
   // ── Plazos ──
@@ -5423,7 +5705,7 @@ function PatrociniosView({
       setPlazoOpen(null);
       setPlazoForm({});
       await reload("patrocinios");
-      toast("Plazo cargado y agendado en Calendar ✓");
+      toast("Plazo cargado y agendado en el calendario");
     } catch (e) {
       toast(e.message, "error");
     }
@@ -5432,7 +5714,8 @@ function PatrociniosView({
   const togglePlazo = async (p, plazoId) => {
     const plazos = (p.plazos || []).map(pl => pl.id === plazoId ? {
       ...pl,
-      cumplido: !pl.cumplido
+      cumplido: !pl.cumplido,
+      fechaCumplido: !pl.cumplido ? today() : null
     } : pl);
     await api.update("patrocinios", p.id, {
       ...p,
@@ -5441,7 +5724,58 @@ function PatrociniosView({
     await reload("patrocinios");
   };
 
-  // ── Personas vinculadas en el form ──
+  // ── Pasos a seguir ──
+  const savePaso = async () => {
+    const p = pasoOpen;
+    if (!String(pasoForm.descripcion || "").trim()) {
+      toast("Escribí qué hay que hacer", "warn");
+      return;
+    }
+    setSaving(true);
+    try {
+      const nuevo = {
+        id: uid(),
+        descripcion: pasoForm.descripcion.trim(),
+        fechaLimite: pasoForm.fechaLimite || null,
+        cumplido: false
+      };
+      await api.update("patrocinios", p.id, {
+        ...p,
+        pasos: [...(p.pasos || []), nuevo]
+      });
+      if (pasoForm.fechaLimite) {
+        try {
+          await api.calCreateEvent({
+            titulo: "PASO: " + nuevo.descripcion + " — " + p.nombre,
+            fecha: pasoForm.fechaLimite,
+            hora: pasoForm.hora || "09:00",
+            duracionMin: 30,
+            ubicacion: p.juzgado || "",
+            descripcion: "Patrocinio: " + p.nombre + (p.expediente ? " | Exp. " + p.expediente : "") + " | " + escLabelCorto(p.escritorio, cfg) + " | Paso interno de seguimiento"
+          });
+        } catch (e) {}
+      }
+      setPasoOpen(null);
+      setPasoForm({});
+      await reload("patrocinios");
+      toast(pasoForm.fechaLimite ? "Paso agregado y agendado" : "Paso agregado");
+    } catch (e) {
+      toast(e.message, "error");
+    }
+    setSaving(false);
+  };
+  const togglePaso = async (p, pasoId) => {
+    const pasos = (p.pasos || []).map(x => x.id === pasoId ? {
+      ...x,
+      cumplido: !x.cumplido,
+      fechaCumplido: !x.cumplido ? today() : null
+    } : x);
+    await api.update("patrocinios", p.id, {
+      ...p,
+      pasos
+    });
+    await reload("patrocinios");
+  };
   const addVinculada = () => f("vinculadas", [...(form.vinculadas || []), {
     nombre: "",
     dni: "",
@@ -5456,8 +5790,6 @@ function PatrociniosView({
     f("vinculadas", arr);
   };
   const delVinculada = i => f("vinculadas", (form.vinculadas || []).filter((_, x) => x !== i));
-
-  // ── Plazos globales (para dashboards) ──
   const plazosDe = esc => {
     const out = [];
     todos.filter(p => !esc || String(p.escritorio) === String(esc)).forEach(p => {
@@ -5467,6 +5799,16 @@ function PatrociniosView({
       }));
     });
     return out.sort((a, b) => String(a.vencimiento).localeCompare(String(b.vencimiento)));
+  };
+  const pasosDe = esc => {
+    const out = [];
+    todos.filter(p => !esc || String(p.escritorio) === String(esc)).forEach(p => {
+      (p.pasos || []).filter(x => !x.cumplido).forEach(x => out.push({
+        ...x,
+        patrocinio: p
+      }));
+    });
+    return out.sort((a, b) => String(a.fechaLimite || "9999").localeCompare(String(b.fechaLimite || "9999")));
   };
 
   // ═══ SELECTOR DE ESCRITORIO ═══
@@ -5497,7 +5839,9 @@ function PatrociniosView({
     }, "¿Desde qué escritorio estás trabajando?"), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
-        gap: 14
+        gap: 14,
+        flexWrap: "wrap",
+        justifyContent: "center"
       }
     }, ["1", "2"].map(n => /*#__PURE__*/React.createElement("button", {
       key: n,
@@ -5512,15 +5856,18 @@ function PatrociniosView({
         fontFamily: "DM Sans, sans-serif",
         fontSize: 14,
         fontWeight: 700,
-        minWidth: 210,
+        minWidth: 215,
         textAlign: "center"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 22,
-        marginBottom: 6
+        marginBottom: 8
       }
-    }, n === "1" ? "☎" : "▪"), "Escritorio ", n, n === "1" ? ESC1_SUFIJO : "", /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: n === "1" ? IcoTel : IcoCuadro,
+      size: 24,
+      color: ESC_COLOR[n]
+    })), "Escritorio ", n, n === "1" ? ESC1_SUFIJO : "", /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
         fontWeight: 400,
@@ -5587,9 +5934,12 @@ function PatrociniosView({
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     onClick: () => setCfgOpen(true)
-  }, "⚙ Configuración"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Configuración"), /*#__PURE__*/React.createElement(Btn, {
     onClick: openNew
-  }, "+ Nuevo patrocinio"))), cargaInicial && /*#__PURE__*/React.createElement("div", {
+  }, "+ Nuevo patrocinio"))), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+    nombre: focoItem.nombre,
+    onClear: limpiarFoco
+  }), cargaInicial && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "12px 18px",
       background: "rgba(230,126,34,0.10)",
@@ -5597,9 +5947,10 @@ function PatrociniosView({
       borderRadius: 10,
       marginBottom: 16,
       fontSize: 13,
-      color: "var(--text)"
+      color: "var(--text)",
+      lineHeight: 1.6
     }
-  }, /*#__PURE__*/React.createElement("b", null, "⚙ Modo carga inicial activo."), " El sistema no sugiere turnos mientras cargan los casos anteriores. Cuando terminen, desactivalo en Configuración para que arranque el reparto automático."), !cargaInicial && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("b", null, "Modo carga inicial activo."), " El sistema no sugiere turnos mientras cargan los casos anteriores. Cuando terminen, desactivalo en Configuración para que arranque el reparto automático."), !cargaInicial && !focoItem && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "16px 20px",
       background: ESC_COLOR_BG[turno],
@@ -5642,27 +5993,28 @@ function PatrociniosView({
     style: {
       color: ESC_COLOR["2"]
     }
-  }, n2), " · Esc. 2"), dif > 0 && /*#__PURE__*/React.createElement("div", {
+  }, n2), " · Esc. 2"), dif > 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 3,
       color: "#e67e22",
       fontWeight: 600
     }
-  }, "Diferencia: ", dif), dif === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Diferencia: ", dif) : /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 3,
       color: "#27ae60",
       fontWeight: 600
     }
-  }, "Equilibrado ✓"))), /*#__PURE__*/React.createElement("div", {
+  }, "Equilibrado"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
       marginBottom: 18,
       flexWrap: "wrap"
     }
-  }, [["lista", "Todos los patrocinios"], ["esc1", "☎ " + (cfg?.esc1_nombre || "Sofia")], ["esc2", "▪ " + (cfg?.esc2_nombre || "Florencia")], ["plazos", "⏱ Plazos"]].map(([v, l]) => {
+  }, [["lista", "Todos los patrocinios"], ["esc1", cfg?.esc1_nombre || "Sofia"], ["esc2", cfg?.esc2_nombre || "Florencia"], ["plazos", "Plazos y pasos"]].map(([v, l]) => {
     const col = v === "esc1" ? ESC_COLOR["1"] : v === "esc2" ? ESC_COLOR["2"] : "var(--gold)";
+    const act = tab === v;
     return /*#__PURE__*/React.createElement("button", {
       key: v,
       onClick: () => setTab(v),
@@ -5673,12 +6025,27 @@ function PatrociniosView({
         fontSize: 12,
         fontFamily: "DM Sans, sans-serif",
         fontWeight: 600,
-        border: "1.5px solid " + (tab === v ? col : "var(--border)"),
-        background: tab === v ? v === "esc1" ? ESC_COLOR_BG["1"] : v === "esc2" ? ESC_COLOR_BG["2"] : "rgba(212,175,55,0.1)" : "transparent",
-        color: tab === v ? col : "var(--muted)"
+        border: "1.5px solid " + (act ? col : "var(--border)"),
+        background: act ? v === "esc1" ? ESC_COLOR_BG["1"] : v === "esc2" ? ESC_COLOR_BG["2"] : "rgba(212,175,55,0.1)" : "transparent",
+        color: act ? col : "var(--muted)",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6
       }
-    }, l);
-  })), tab === "lista" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, v === "esc1" && /*#__PURE__*/React.createElement(Ico, {
+      d: IcoTel,
+      size: 13,
+      color: act ? col : "var(--muted)"
+    }), v === "esc2" && /*#__PURE__*/React.createElement(Ico, {
+      d: IcoCuadro,
+      size: 13,
+      color: act ? col : "var(--muted)"
+    }), v === "plazos" && /*#__PURE__*/React.createElement(Ico, {
+      d: IcoReloj,
+      size: 13,
+      color: act ? col : "var(--muted)"
+    }), l);
+  })), tab === "lista" && /*#__PURE__*/React.createElement("div", null, !focoItem && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -5686,22 +6053,37 @@ function PatrociniosView({
       flexWrap: "wrap",
       alignItems: "center"
     }
-  }, /*#__PURE__*/React.createElement("input", {
-    value: search,
-    onChange: e => setSearch(e.target.value),
-    placeholder: "Buscar por nombre, DNI, expediente, familiar, contraparte...",
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       minWidth: 260,
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      left: 12,
+      top: 10,
+      color: "var(--muted)"
+    }
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoBuscar,
+    size: 15
+  })), /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "Buscar por nombre, DNI, expediente, familiar, bitácora...",
+    style: {
+      width: "100%",
       background: "var(--input-bg)",
       border: "1.5px solid var(--border)",
       borderRadius: 8,
-      padding: "9px 14px",
+      padding: "9px 14px 9px 34px",
       fontSize: 13,
       color: "var(--text)",
       outline: "none"
     }
-  }), [["", "Ambos"], ["1", "☎ Esc. 1"], ["2", "▪ Esc. 2"]].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
+  })), [["", "Ambos"], ["1", "Esc. 1"], ["2", "Esc. 2"]].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
     key: v,
     onClick: () => setFiltroEsc(v),
     style: {
@@ -5718,29 +6100,32 @@ function PatrociniosView({
     style: {
       display: "flex",
       flexDirection: "column",
-      gap: 8
+      gap: 10
     }
   }, lista.map(p => {
     const isOpen = expanded === p.id;
     const esc = String(p.escritorio || "1");
-    const plazosAbiertos = (p.plazos || []).filter(pl => !pl.cumplido);
-    const masUrgente = plazosAbiertos.sort((a, b) => String(a.vencimiento).localeCompare(String(b.vencimiento)))[0];
-    const sem = masUrgente ? estadoPlazo(masUrgente.vencimiento) : null;
+    const col = ESC_COLOR[esc];
+    const plazosAb = (p.plazos || []).filter(pl => !pl.cumplido).sort((a, b) => String(a.vencimiento).localeCompare(String(b.vencimiento)));
+    const pasosAb = (p.pasos || []).filter(x => !x.cumplido);
+    const pasosOk = (p.pasos || []).filter(x => x.cumplido);
+    const bit = p.bitacora || [];
+    const sem = plazosAb[0] ? estadoPlazo(plazosAb[0].vencimiento) : null;
     const desvio = p.turnoSugerido && String(p.escritorio) !== String(p.turnoSugerido);
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      onClick: () => setExpanded(isOpen ? null : p.id),
       style: {
         background: "var(--surface)",
         borderRadius: 12,
         overflow: "hidden",
-        cursor: "pointer",
-        border: "1px solid " + (isOpen ? ESC_COLOR[esc] : "var(--border)"),
-        borderLeft: "4px solid " + ESC_COLOR[esc]
+        border: "1px solid " + (isOpen ? col : "var(--border)"),
+        borderLeft: "4px solid " + col
       }
     }, /*#__PURE__*/React.createElement("div", {
+      onClick: () => setExpanded(isOpen ? null : p.id),
       style: {
         padding: "14px 18px",
+        cursor: "pointer",
         display: "flex",
         alignItems: "flex-start",
         gap: 12
@@ -5761,70 +6146,154 @@ function PatrociniosView({
     }, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "Lora, serif",
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 700,
         color: "var(--text)"
       }
     }, p.nombre), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 10,
-        fontFamily: "DM Mono, monospace",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
         fontWeight: 700,
-        padding: "2px 8px",
-        borderRadius: 5,
-        background: ESC_COLOR[esc],
-        color: "#fff"
+        padding: "2px 9px",
+        borderRadius: 6,
+        background: ESC_COLOR_BG[esc],
+        color: col,
+        border: "1px solid " + col
       }
-    }, esc === "1" ? "☎ ESC 1" : "▪ ESC 2"), p.tipoCausa && /*#__PURE__*/React.createElement(Badge, {
-      label: p.tipoCausa
-    }), p.cuentaBalance === false && /*#__PURE__*/React.createElement(Badge, {
-      label: "no cuenta",
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: esc === "1" ? IcoTel : IcoCuadro,
+      size: 11,
+      color: col
+    }), "Escritorio ", esc), p.cuentaBalance === false && /*#__PURE__*/React.createElement(Badge, {
+      label: "no cuenta al balance",
       color: "var(--muted)"
-    }), desvio && /*#__PURE__*/React.createElement("span", {
-      title: "Cargado apartándose del turno sugerido",
+    }), sem && ["vencido", "hoy", "manana"].includes(sem.nivel) && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
-        color: "#e67e22"
-      }
-    }, "⚠"), sem && sem.nivel !== "lejos" && sem.nivel !== "sin" && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 10,
-        fontFamily: "DM Mono, monospace",
         fontWeight: 700,
-        padding: "2px 8px",
-        borderRadius: 5,
+        padding: "2px 9px",
+        borderRadius: 6,
         background: sem.color,
         color: "#fff"
       }
     }, sem.label)), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 11,
+        fontSize: 12,
         color: "var(--muted)",
         display: "flex",
         gap: 12,
         flexWrap: "wrap"
       }
-    }, p.dni && /*#__PURE__*/React.createElement("span", null, "DNI ", p.dni), p.expediente && /*#__PURE__*/React.createElement("span", null, "Exp. ", p.expediente), p.juzgado && /*#__PURE__*/React.createElement("span", null, p.juzgado), plazosAbiertos.length > 0 && /*#__PURE__*/React.createElement("span", null, "⏱ ", plazosAbiertos.length, " plazo", plazosAbiertos.length !== 1 ? "s" : "")), p._m.donde && /*#__PURE__*/React.createElement("div", {
+    }, p.tipoCausa && /*#__PURE__*/React.createElement("span", null, p.tipoCausa), p.expediente && /*#__PURE__*/React.createElement("span", null, "Exp. ", p.expediente), p.dni && /*#__PURE__*/React.createElement("span", null, "DNI ", p.dni), plazosAb.length > 0 && /*#__PURE__*/React.createElement("span", null, plazosAb.length, " plazo", plazosAb.length !== 1 ? "s" : ""), pasosAb.length > 0 && /*#__PURE__*/React.createElement("span", null, pasosAb.length, " paso", pasosAb.length !== 1 ? "s" : "", " pendiente", pasosAb.length !== 1 ? "s" : "")), p._m.donde && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 11,
         color: "var(--gold)",
         marginTop: 4,
         fontStyle: "italic"
       }
-    }, "↳ coincide en: ", p._m.donde)), /*#__PURE__*/React.createElement("div", {
-      onClick: e => e.stopPropagation(),
+    }, "coincide en: ", p._m.donde)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        color: "var(--muted)",
+        flexShrink: 0,
+        marginTop: 3
+      }
+    }, isOpen ? "▲" : "▼")), isOpen && /*#__PURE__*/React.createElement("div", {
+      style: {
+        animation: "slideIn 0.15s ease"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderTop: "1px solid var(--border)",
+        padding: "14px 18px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
-        gap: 5,
         alignItems: "center",
-        flexShrink: 0
+        justifyContent: "space-between",
+        marginBottom: 10
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 14,
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoNota,
+      size: 15,
+      color: "var(--gold)"
+    }), " Bitácora del caso"), /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      variant: "ghost",
+      onClick: () => {
+        setNotaOpen(p);
+        setNotaTexto("");
+      }
+    }, "Agregar nota")), bit.length === 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--muted)",
+        fontStyle: "italic",
+        padding: "6px 0"
+      }
+    }, "Todavía no hay notas. Usá \"Agregar nota\" para registrar lo que se va haciendo."), bit.slice(0, 6).map((b, i) => /*#__PURE__*/React.createElement("div", {
+      key: b.id || i,
+      style: {
+        borderLeft: "2px solid " + (i === 0 ? col : "var(--border)"),
+        paddingLeft: 12,
+        marginBottom: 9
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
         color: "var(--muted)"
       }
-    }, isOpen ? "▲" : "▼"), /*#__PURE__*/React.createElement(Btn, {
+    }, fd(b.fecha), b.por ? " · Esc. " + b.por : ""), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: i === 0 ? "var(--text)" : "var(--muted)",
+        lineHeight: 1.6,
+        marginTop: 1
+      }
+    }, b.texto))), bit.length > 6 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--muted)"
+      }
+    }, "y ", bit.length - 6, " nota", bit.length - 6 !== 1 ? "s" : "", " más")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderTop: "1px solid var(--border)",
+        padding: "14px 18px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoReloj,
+      size: 15,
+      color: "#c0392b"
+    }), " Plazos procesales"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
       onClick: () => {
@@ -5833,30 +6302,213 @@ function PatrociniosView({
           fechaNotif: today()
         });
       }
-    }, "⏱"), /*#__PURE__*/React.createElement(Btn, {
+    }, "Cargar plazo")), plazosAb.length === 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--muted)",
+        fontStyle: "italic",
+        padding: "6px 0"
+      }
+    }, "Sin plazos pendientes. Usá \"Cargar plazo\" e indicá la fecha de notificación y los días hábiles."), plazosAb.map(pl => {
+      const s = estadoPlazo(pl.vencimiento);
+      return /*#__PURE__*/React.createElement("div", {
+        key: pl.id,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 11,
+          padding: "10px 13px",
+          background: "var(--surface2)",
+          borderRadius: 8,
+          borderLeft: "3px solid " + s.color,
+          marginBottom: 6
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        onClick: () => togglePlazo(p, pl.id),
+        title: "Marcar cumplido",
+        style: {
+          width: 17,
+          height: 17,
+          borderRadius: 4,
+          border: "2px solid var(--border)",
+          cursor: "pointer",
+          flexShrink: 0
+        }
+      }), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--text)"
+        }
+      }, pl.descripcion), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 11,
+          color: "var(--muted)"
+        }
+      }, "Notif. ", fd(pl.fechaNotif), " · ", pl.dias, " días hábiles · vence ", fd(pl.vencimiento), " a las 10:00")), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11,
+          fontWeight: 700,
+          color: s.color,
+          flexShrink: 0
+        }
+      }, s.label));
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderTop: "1px solid var(--border)",
+        padding: "14px 18px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoLista,
+      size: 15,
+      color: "#2980b9"
+    }), " Pasos a seguir"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
       onClick: () => {
-        setForm({
-          ...p
-        });
-        setModalOpen(true);
+        setPasoOpen(p);
+        setPasoForm({});
       }
-    }, "✏"))), isOpen && /*#__PURE__*/React.createElement("div", {
+    }, "Agregar paso")), pasosAb.length === 0 && pasosOk.length === 0 && /*#__PURE__*/React.createElement("div", {
       style: {
-        borderTop: "1px solid var(--border)",
-        padding: "16px 18px",
-        background: "var(--surface2)",
-        animation: "slideIn 0.15s ease"
+        fontSize: 12,
+        color: "var(--muted)",
+        fontStyle: "italic",
+        padding: "6px 0"
+      }
+    }, "Sin pasos cargados. Anotá acá lo que hay que hacer y quedará agendado."), pasosAb.map(x => {
+      const s = x.fechaLimite ? estadoPlazo(x.fechaLimite) : null;
+      return /*#__PURE__*/React.createElement("div", {
+        key: x.id,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 11,
+          padding: "9px 13px",
+          background: "var(--surface2)",
+          borderRadius: 8,
+          marginBottom: 6
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        onClick: () => togglePaso(p, x.id),
+        title: "Marcar realizado",
+        style: {
+          width: 17,
+          height: 17,
+          borderRadius: 4,
+          border: "2px solid var(--border)",
+          cursor: "pointer",
+          flexShrink: 0
+        }
+      }), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1,
+          fontSize: 13,
+          color: "var(--text)"
+        }
+      }, x.descripcion), x.fechaLimite && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11,
+          color: s ? s.color : "var(--muted)",
+          flexShrink: 0
+        }
+      }, "para el ", fd(x.fechaLimite)));
+    }), pasosOk.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 4
+      }
+    }, pasosOk.slice(0, 5).map(x => /*#__PURE__*/React.createElement("div", {
+      key: x.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 11,
+        padding: "7px 13px",
+        opacity: 0.6
       }
     }, /*#__PURE__*/React.createElement("div", {
+      onClick: () => togglePaso(p, x.id),
+      style: {
+        width: 17,
+        height: 17,
+        borderRadius: 4,
+        border: "2px solid #27ae60",
+        background: "#27ae60",
+        cursor: "pointer",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoCheck,
+      size: 11,
+      color: "#fff"
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        fontSize: 12,
+        color: "var(--muted)",
+        textDecoration: "line-through"
+      }
+    }, x.descripcion), x.fechaCumplido && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: "#27ae60",
+        flexShrink: 0
+      }
+    }, "hecho ", fd(x.fechaCumplido)))))), (p.juzgado || p.secretaria || p.contraparte || p.telefono || (p.vinculadas || []).length > 0) && /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderTop: "1px solid var(--border)",
+        padding: "14px 18px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
+        marginBottom: 10
+      }
+    }, "Datos del expediente"), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         gap: "8px 24px",
-        marginBottom: 12
+        marginBottom: (p.vinculadas || []).length ? 12 : 0
       }
-    }, p.secretaria && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    }, p.juzgado && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: "var(--muted)",
+        fontFamily: "DM Mono, monospace",
+        textTransform: "uppercase"
+      }
+    }, "Juzgado"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: "var(--text)"
+      }
+    }, p.juzgado)), p.secretaria && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
         color: "var(--muted)",
@@ -5904,11 +6556,7 @@ function PatrociniosView({
         fontSize: 13,
         color: "var(--text)"
       }
-    }, fd(p.fechaAlta)))), (p.vinculadas || []).length > 0 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
+    }, fd(p.fechaAlta)))), (p.vinculadas || []).length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 10,
         color: "var(--muted)",
@@ -5928,163 +6576,148 @@ function PatrociniosView({
         fontSize: 11,
         padding: "3px 10px",
         borderRadius: 6,
-        background: "var(--surface)",
+        background: "var(--surface2)",
         border: "1px solid var(--border)",
         color: "var(--text)"
       }
-    }, v.nombre, v.vinculo ? " · " + v.vinculo : "", v.dni ? " · " + v.dni : "")))), plazosAbiertos.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, v.nombre, v.vinculo ? " · " + v.vinculo : "", v.dni ? " · " + v.dni : ""))))), histOpen === p.id && /*#__PURE__*/React.createElement("div", {
       style: {
-        marginBottom: 12
+        borderTop: "1px solid var(--border)",
+        padding: "14px 18px",
+        background: "var(--surface2)"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 10,
-        color: "var(--muted)",
-        fontFamily: "DM Mono, monospace",
-        textTransform: "uppercase",
-        marginBottom: 5
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
+        marginBottom: 10,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6
       }
-    }, "Plazos pendientes"), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoHist,
+      size: 15,
+      color: "var(--muted)"
+    }), " Historial del caso"), /*#__PURE__*/React.createElement("div", {
       style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 5
+        fontSize: 11,
+        color: "var(--muted)",
+        marginBottom: 10,
+        lineHeight: 1.6
       }
-    }, plazosAbiertos.map(pl => {
-      const s = estadoPlazo(pl.vencimiento);
+    }, "Registro automático de todo lo que pasó con este patrocinio. No se puede editar."), (p.historial || []).length === 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--muted)"
+      }
+    }, "Sin movimientos registrados."), (p.historial || []).map((h, i) => {
+      const t = historialTexto(h, cfg);
       return /*#__PURE__*/React.createElement("div", {
-        key: pl.id,
+        key: i,
         style: {
           display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "8px 12px",
-          background: "var(--surface)",
-          borderRadius: 8,
-          borderLeft: "3px solid " + s.color
+          gap: 12,
+          padding: "8px 0",
+          borderBottom: i < p.historial.length - 1 ? "1px solid var(--border)" : "none"
         }
-      }, /*#__PURE__*/React.createElement("div", {
-        onClick: () => togglePlazo(p, pl.id),
+      }, /*#__PURE__*/React.createElement("span", {
         style: {
-          width: 15,
-          height: 15,
-          borderRadius: 4,
-          border: "2px solid var(--border)",
-          cursor: "pointer",
+          fontSize: 11,
+          color: "var(--muted)",
+          fontFamily: "DM Mono, monospace",
+          minWidth: 92,
           flexShrink: 0
         }
-      }), /*#__PURE__*/React.createElement("div", {
-        style: {
-          flex: 1
-        }
-      }, /*#__PURE__*/React.createElement("div", {
+      }, t.fecha), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 12,
-          fontWeight: 600,
-          color: "var(--text)"
+          color: t.alerta ? "#e67e22" : "var(--text)",
+          lineHeight: 1.5
         }
-      }, pl.descripcion), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: 10,
-          color: "var(--muted)"
-        }
-      }, "Notif. ", fd(pl.fechaNotif), " · ", pl.dias, " días hábiles → vence ", fd(pl.vencimiento), " 10:00 hs")), /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontSize: 10,
-          fontFamily: "DM Mono, monospace",
-          fontWeight: 700,
-          color: s.color
-        }
-      }, s.label));
-    }))), p.notas && /*#__PURE__*/React.createElement("div", {
+      }, t.texto));
+    })), /*#__PURE__*/React.createElement("div", {
       style: {
-        padding: "10px 12px",
-        background: "var(--surface)",
-        borderRadius: 8,
-        borderLeft: "3px solid var(--gold)",
-        fontSize: 12,
-        color: "var(--text)",
-        lineHeight: 1.6,
-        marginBottom: 12
-      }
-    }, p.notas), (p.historial || []).length > 0 && /*#__PURE__*/React.createElement("details", {
-      style: {
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("summary", {
-      style: {
-        fontSize: 11,
-        color: "var(--muted)",
-        cursor: "pointer",
-        fontFamily: "DM Mono, monospace",
-        textTransform: "uppercase"
-      }
-    }, "Trazabilidad (", p.historial.length, ")"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4
-      }
-    }, p.historial.map((h, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        fontSize: 11,
-        color: "var(--muted)",
-        padding: "5px 10px",
-        background: "var(--surface)",
-        borderRadius: 6
-      }
-    }, /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: "var(--text)"
-      }
-    }, h.accion), " · ", new Date(h.fecha).toLocaleString("es-AR"), h.escritorio && " · a Esc. " + h.escritorio, h.desde && " · de Esc. " + h.desde + " a Esc. " + h.hacia, h.por && " · por Esc. " + h.por, h.motivo && " · motivo: " + (MOTIVOS_DESVIO.find(m => m.value === h.motivo)?.label || h.motivo))))), /*#__PURE__*/React.createElement("div", {
-      style: {
+        borderTop: "1px solid var(--border)",
+        padding: "12px 18px",
         display: "flex",
         gap: 8,
-        flexWrap: "wrap"
+        flexWrap: "wrap",
+        background: "var(--surface2)"
       }
     }, /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
       onClick: () => {
-        setPlazoOpen(p);
-        setPlazoForm({
-          fechaNotif: today()
+        setForm({
+          ...p
         });
+        setModalOpen(true);
       }
-    }, "⏱ Cargar plazo"), /*#__PURE__*/React.createElement(Btn, {
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoEditar,
+      size: 13
+    }), " Editar datos"), /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      variant: "ghost",
+      onClick: () => setHistOpen(histOpen === p.id ? null : p.id)
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoHist,
+      size: 13
+    }), " Historial del caso (", (p.historial || []).length, ")"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
       onClick: () => setTransferOpen(p)
-    }, "⇄ Transferir escritorio"), /*#__PURE__*/React.createElement(Btn, {
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoTransf,
+      size: 13
+    }), " Transferir escritorio"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
       onClick: () => archivar(p)
-    }, "📁 Archivar"), p.cuentaBalance !== false && /*#__PURE__*/React.createElement(Btn, {
+    }, /*#__PURE__*/React.createElement(Ico, {
+      d: IcoArchivo,
+      size: 13
+    }), " Archivar"), p.cuentaBalance !== false && /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "danger",
       onClick: () => marcarError(p)
-    }, "Cargado por error"))));
+    }, "Marcar error de carga"))));
   }), !lista.length && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       padding: 48,
       color: "var(--muted)"
     }
-  }, search ? "Sin coincidencias" : "No hay patrocinios registrados"))), (tab === "esc1" || tab === "esc2") && /*#__PURE__*/React.createElement(EscritorioDashboard, {
+  }, search ? "Sin coincidencias para \"" + search + "\"" : "Todavía no hay patrocinios. Usá \"+ Nuevo patrocinio\" para el primero."))), (tab === "esc1" || tab === "esc2") && /*#__PURE__*/React.createElement(EscritorioDashboard, {
     esc: tab === "esc1" ? "1" : "2",
     todos: todos,
     cfg: cfg,
     plazosDe: plazosDe,
+    pasosDe: pasosDe,
     otroTotal: tab === "esc1" ? n2 : n1,
     propioTotal: tab === "esc1" ? n1 : n2
-  }), tab === "plazos" && /*#__PURE__*/React.createElement("div", {
+  }), tab === "plazos" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: "var(--text)",
+      marginBottom: 10,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoReloj,
+    size: 15,
+    color: "#c0392b"
+  }), " Plazos procesales"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
-      gap: 8
+      gap: 7,
+      marginBottom: 24
     }
   }, plazosDe(null).map(pl => {
     const s = estadoPlazo(pl.vencimiento);
@@ -6122,10 +6755,9 @@ function PatrociniosView({
         color: ESC_COLOR[esc],
         fontWeight: 700
       }
-    }, esc === "1" ? "☎ Esc 1" : "▪ Esc 2"), " · vence ", fd(pl.vencimiento), " 10:00 hs")), /*#__PURE__*/React.createElement("span", {
+    }, "Escritorio ", esc), " · vence ", fd(pl.vencimiento), " a las 10:00")), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
-        fontFamily: "DM Mono, monospace",
         fontWeight: 700,
         color: s.color
       }
@@ -6133,15 +6765,86 @@ function PatrociniosView({
   }), !plazosDe(null).length && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
-      padding: 48,
-      color: "var(--muted)"
+      padding: 32,
+      color: "var(--muted)",
+      fontSize: 13
     }
-  }, "No hay plazos pendientes ✓")), /*#__PURE__*/React.createElement(Modal, {
+  }, "No hay plazos pendientes.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: "var(--text)",
+      marginBottom: 10,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoLista,
+    size: 15,
+    color: "#2980b9"
+  }), " Pasos a seguir"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 7
+    }
+  }, pasosDe(null).map(x => {
+    const s = x.fechaLimite ? estadoPlazo(x.fechaLimite) : null;
+    const esc = String(x.patrocinio.escritorio || "1");
+    return /*#__PURE__*/React.createElement("div", {
+      key: x.id,
+      style: {
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderLeft: "4px solid " + (s ? s.color : "var(--border)"),
+        borderRadius: 10,
+        padding: "12px 18px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        color: "var(--text)"
+      }
+    }, x.descripcion), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--muted)",
+        marginTop: 2
+      }
+    }, x.patrocinio.nombre, " · ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: ESC_COLOR[esc],
+        fontWeight: 700
+      }
+    }, "Escritorio ", esc), x.fechaLimite ? " · para el " + fd(x.fechaLimite) : " · sin fecha")), s && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: s.color
+      }
+    }, s.label));
+  }), !pasosDe(null).length && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: 32,
+      color: "var(--muted)",
+      fontSize: 13
+    }
+  }, "No hay pasos pendientes."))), /*#__PURE__*/React.createElement(Modal, {
     open: modalOpen,
     onClose: () => setModalOpen(false),
-    title: form.id ? "Editar patrocinio" : "Nuevo patrocinio",
+    title: form.id ? "Editar datos del patrocinio" : "Nuevo patrocinio",
     wide: true
-  }, !form.id && !cargaInicial && form.turnoSugerido && /*#__PURE__*/React.createElement("div", {
+  }, form._esNuevo && !cargaInicial && form.turnoSugerido && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "10px 14px",
       background: ESC_COLOR_BG[form.turnoSugerido],
@@ -6163,9 +6866,10 @@ function PatrociniosView({
       borderRadius: 8,
       marginBottom: 14,
       fontSize: 12,
-      color: "var(--text)"
+      color: "var(--text)",
+      lineHeight: 1.6
     }
-  }, "⚠ Este DNI ya tiene un patrocinio: ", /*#__PURE__*/React.createElement("b", null, previoMismoDni.nombre), " en ", escLabelCorto(previoMismoDni.escritorio, cfg), ". Por continuidad debería seguir con la misma profesional."), /*#__PURE__*/React.createElement(Row2, null, /*#__PURE__*/React.createElement(Input, {
+  }, "Este DNI ya tiene un patrocinio: ", /*#__PURE__*/React.createElement("b", null, previoMismoDni.nombre), " en ", escLabelCorto(previoMismoDni.escritorio, cfg), ". Por continuidad debería seguir con la misma profesional."), /*#__PURE__*/React.createElement(Row2, null, /*#__PURE__*/React.createElement(Input, {
     label: "Nombre / Carátula *",
     value: form.nombre,
     onChange: v => f("nombre", v),
@@ -6178,7 +6882,7 @@ function PatrociniosView({
     label: "Tipo de causa",
     value: form.tipoCausa,
     onChange: v => f("tipoCausa", v),
-    placeholder: "Ej: Guarda, Divorcio, Alimentos"
+    placeholder: "Guarda, Divorcio, Alimentos..."
   }), /*#__PURE__*/React.createElement(Input, {
     label: "Expediente",
     value: form.expediente,
@@ -6222,7 +6926,7 @@ function PatrociniosView({
       textTransform: "uppercase",
       letterSpacing: "0.07em"
     }
-  }, "Escritorio asignado *"), /*#__PURE__*/React.createElement("div", {
+  }, "Escritorio asignado"), form._esNuevo ? /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10
@@ -6242,13 +6946,47 @@ function PatrociniosView({
       color: String(form.escritorio) === n ? ESC_COLOR[n] : "var(--muted)",
       fontFamily: "DM Sans, sans-serif"
     }
-  }, n === "1" ? "☎ Escritorio 1" + ESC1_SUFIJO : "▪ Escritorio 2", /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: n === "1" ? IcoTel : IcoCuadro,
+    size: 14,
+    color: String(form.escritorio) === n ? ESC_COLOR[n] : "var(--muted)"
+  }), " ", "Escritorio ", n, n === "1" ? ESC1_SUFIJO : "", /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       fontWeight: 400,
       marginTop: 2
     }
-  }, n === "1" ? cfg?.esc1_nombre || "Sofia" : cfg?.esc2_nombre || "Florencia"))))), form.turnoSugerido && form.escritorio && String(form.escritorio) !== String(form.turnoSugerido) && /*#__PURE__*/React.createElement("div", {
+  }, n === "1" ? cfg?.esc1_nombre || "Sofia" : cfg?.esc2_nombre || "Florencia")))) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "12px 16px",
+      borderRadius: 10,
+      border: "1.5px solid var(--border)",
+      background: ESC_COLOR_BG[String(form.escritorio || "1")],
+      display: "flex",
+      alignItems: "center",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoCandado,
+    size: 16,
+    color: "var(--muted)"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: ESC_COLOR[String(form.escritorio || "1")]
+    }
+  }, escLabel(String(form.escritorio || "1"), cfg)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--muted)",
+      marginTop: 2
+    }
+  }, "Para cambiarlo, cerrá esta ventana y usá \"Transferir escritorio\". Pide contraseña.")))), form._esNuevo && form.turnoSugerido && form.escritorio && String(form.escritorio) !== String(form.turnoSugerido) && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "12px 14px",
       background: "rgba(230,126,34,0.10)",
@@ -6263,7 +7001,7 @@ function PatrociniosView({
       fontWeight: 600,
       marginBottom: 8
     }
-  }, "⚠ Te estás apartando del turno sugerido. Indicá el motivo (queda registrado y visible para ambas):"), /*#__PURE__*/React.createElement(Select, {
+  }, "Te estás apartando del turno. Indicá el motivo — queda registrado y visible para ambas."), /*#__PURE__*/React.createElement(Select, {
     label: "",
     value: form.motivoDesvio,
     onChange: v => f("motivoDesvio", v),
@@ -6359,12 +7097,7 @@ function PatrociniosView({
       fontSize: 15,
       padding: "0 4px"
     }
-  }, "✕")))), /*#__PURE__*/React.createElement(Textarea, {
-    label: "Notas",
-    value: form.notas,
-    onChange: v => f("notas", v),
-    rows: 3
-  }), /*#__PURE__*/React.createElement("div", {
+  }, "✕")))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -6378,27 +7111,65 @@ function PatrociniosView({
     onClick: save,
     disabled: saving
   }, saving ? "Guardando..." : "Guardar"))), /*#__PURE__*/React.createElement(Modal, {
+    open: !!notaOpen,
+    onClose: () => {
+      setNotaOpen(null);
+      setNotaTexto("");
+    },
+    title: "Agregar nota a la bitácora"
+  }, notaOpen && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--muted)",
+      marginBottom: 12
+    }
+  }, "Caso: ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "var(--text)"
+    }
+  }, notaOpen.nombre)), /*#__PURE__*/React.createElement(Textarea, {
+    label: "Qué pasó hoy — " + fd(today()),
+    value: notaTexto,
+    onChange: setNotaTexto,
+    rows: 4,
+    placeholder: "Se presentó el oficio al Registro. Falta que el juzgado lo mande."
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      justifyContent: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => {
+      setNotaOpen(null);
+      setNotaTexto("");
+    }
+  }, "Cancelar"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: saveNota,
+    disabled: saving
+  }, saving ? "Guardando..." : "Agregar nota"))), /*#__PURE__*/React.createElement(Modal, {
     open: !!plazoOpen,
     onClose: () => {
       setPlazoOpen(null);
       setPlazoForm({});
     },
-    title: "⏱ Cargar plazo procesal"
+    title: "Cargar plazo procesal"
   }, plazoOpen && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: "var(--muted)",
       marginBottom: 14
     }
-  }, "Patrocinio: ", /*#__PURE__*/React.createElement("b", {
+  }, "Caso: ", /*#__PURE__*/React.createElement("b", {
     style: {
       color: "var(--text)"
     }
   }, plazoOpen.nombre)), /*#__PURE__*/React.createElement(Input, {
-    label: "Descripción del plazo *",
+    label: "Qué hay que hacer *",
     value: plazoForm.descripcion,
     onChange: v => pf("descripcion", v),
-    placeholder: "Ej: Contestar demanda",
+    placeholder: "Contestar demanda",
     required: true
   }), /*#__PURE__*/React.createElement(Row2, null, /*#__PURE__*/React.createElement(Input, {
     label: "Fecha de notificación *",
@@ -6435,13 +7206,14 @@ function PatrociniosView({
       fontWeight: 700,
       color: "#27ae60"
     }
-  }, fd(vencCalc), " · 10:00 hs con cargo"), /*#__PURE__*/React.createElement("div", {
+  }, fd(vencCalc), " a las 10:00 con cargo"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--muted)",
-      marginTop: 4
+      marginTop: 4,
+      lineHeight: 1.6
     }
-  }, "Se agenda automáticamente en Google Calendar. Descuenta sábados, domingos, feria y días inhábiles cargados.")), /*#__PURE__*/React.createElement("div", {
+  }, "Corre desde el día hábil siguiente a la notificación. Descuenta sábados, domingos, feria y los días inhábiles cargados en Configuración. Se agenda en el calendario.")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -6457,37 +7229,98 @@ function PatrociniosView({
     onClick: savePlazo,
     disabled: saving || !vencCalc
   }, saving ? "Guardando..." : "Cargar plazo"))), /*#__PURE__*/React.createElement(Modal, {
+    open: !!pasoOpen,
+    onClose: () => {
+      setPasoOpen(null);
+      setPasoForm({});
+    },
+    title: "Agregar paso a seguir"
+  }, pasoOpen && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--muted)",
+      marginBottom: 14
+    }
+  }, "Caso: ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "var(--text)"
+    }
+  }, pasoOpen.nombre)), /*#__PURE__*/React.createElement(Input, {
+    label: "Qué hay que hacer *",
+    value: pasoForm.descripcion,
+    onChange: v => sf("descripcion", v),
+    placeholder: "Pedir informe socioambiental",
+    required: true
+  }), /*#__PURE__*/React.createElement(Row2, null, /*#__PURE__*/React.createElement(Input, {
+    label: "Fecha límite (opcional)",
+    value: pasoForm.fechaLimite,
+    onChange: v => sf("fechaLimite", v),
+    type: "date"
+  }), /*#__PURE__*/React.createElement(Input, {
+    label: "Hora",
+    value: pasoForm.hora,
+    onChange: v => sf("hora", v),
+    type: "time",
+    placeholder: "09:00"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "10px 14px",
+      background: "var(--surface2)",
+      borderRadius: 8,
+      fontSize: 11,
+      color: "var(--muted)",
+      lineHeight: 1.6,
+      marginBottom: 14
+    }
+  }, "Si le ponés fecha, se agenda en el calendario como ", /*#__PURE__*/React.createElement("b", null, "PASO:"), " — así cualquiera puede verlo si falta la persona a cargo. Sin fecha, queda solo como pendiente en la ficha."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      justifyContent: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => {
+      setPasoOpen(null);
+      setPasoForm({});
+    }
+  }, "Cancelar"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: savePaso,
+    disabled: saving
+  }, saving ? "Guardando..." : "Agregar paso"))), /*#__PURE__*/React.createElement(Modal, {
     open: !!transferOpen,
     onClose: () => {
       setTransferOpen(null);
       setTransferPwd("");
     },
-    title: "⇄ Transferir a otro escritorio"
+    title: "Transferir a otro escritorio"
   }, transferOpen && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: "12px 16px",
+      padding: "14px 18px",
       background: "var(--surface2)",
-      borderRadius: 8,
+      borderRadius: 10,
       marginBottom: 16,
       fontSize: 13,
       color: "var(--text)",
-      lineHeight: 1.7
+      lineHeight: 1.8
     }
   }, /*#__PURE__*/React.createElement("b", null, transferOpen.nombre), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
     style: {
-      color: ESC_COLOR[String(transferOpen.escritorio)]
+      color: ESC_COLOR[String(transferOpen.escritorio)],
+      fontWeight: 700
     }
-  }, escLabelCorto(transferOpen.escritorio, cfg)), " → ", /*#__PURE__*/React.createElement("span", {
+  }, "Escritorio ", transferOpen.escritorio), " → ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: ESC_COLOR[String(transferOpen.escritorio) === "1" ? "2" : "1"]
+      color: ESC_COLOR[String(transferOpen.escritorio) === "1" ? "2" : "1"],
+      fontWeight: 700
     }
-  }, escLabelCorto(String(transferOpen.escritorio) === "1" ? "2" : "1", cfg)), /*#__PURE__*/React.createElement("div", {
+  }, "Escritorio ", String(transferOpen.escritorio) === "1" ? "2" : "1"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--muted)",
-      marginTop: 6
+      marginTop: 8
     }
-  }, "Los contadores se ajustan: −1 al que cede, +1 al que recibe.")), /*#__PURE__*/React.createElement(Input, {
+  }, "Los contadores se ajustan: uno menos para el que cede, uno más para el que recibe. Queda asentado en el historial.")), /*#__PURE__*/React.createElement(Input, {
     label: "Contraseña de transferencia",
     value: transferPwd,
     onChange: setTransferPwd,
@@ -6526,6 +7359,7 @@ function EscritorioDashboard({
   todos,
   cfg,
   plazosDe,
+  pasosDe,
   otroTotal,
   propioTotal
 }) {
@@ -6536,7 +7370,12 @@ function EscritorioDashboard({
   const activos = mios.filter(p => p.estado === "activa" || !p.estado);
   const cuentan = mios.filter(p => p.cuentaBalance !== false);
   const plazos = plazosDe(esc);
+  const pasos = pasosDe ? pasosDe(esc) : [];
   const urgentes = plazos.filter(pl => ["vencido", "hoy", "manana"].includes(estadoPlazo(pl.vencimiento).nivel));
+  const notasRecientes = mios.flatMap(p => (p.bitacora || []).map(b => ({
+    ...b,
+    patrocinio: p
+  }))).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))).slice(0, 5);
 
   // Por tipo de caso
   const porTipo = {};
@@ -6609,9 +7448,16 @@ function EscritorioDashboard({
       fontFamily: "Lora, serif",
       fontSize: 21,
       fontWeight: 700,
-      color: col
+      color: col,
+      display: "flex",
+      alignItems: "center",
+      gap: 8
     }
-  }, esc === "1" ? "☎ Escritorio 1" + ESC1_SUFIJO : "▪ Escritorio 2"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: esc === "1" ? IcoTel : IcoCuadro,
+    size: 19,
+    color: col
+  }), esc === "1" ? "Escritorio 1" + ESC1_SUFIJO : "Escritorio 2"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: "var(--text)",
@@ -6637,9 +7483,9 @@ function EscritorioDashboard({
     value: plazos.length,
     sub: urgentes.length > 0 ? urgentes.length + " urgentes" : "Ninguno urgente"
   }), /*#__PURE__*/React.createElement(Card, {
-    label: "Tipos de caso",
-    value: tipos.length,
-    sub: tipos[0] ? "Más frecuente: " + tipos[0][0] : ""
+    label: "Pasos pendientes",
+    value: pasos.length,
+    sub: pasos.filter(x => x.fechaLimite).length + " con fecha"
   })), urgentes.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--surface)",
@@ -6658,7 +7504,7 @@ function EscritorioDashboard({
       marginBottom: 10,
       fontWeight: 700
     }
-  }, "⚠ Plazos urgentes"), /*#__PURE__*/React.createElement("div", {
+  }, "Plazos urgentes"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -6822,7 +7668,48 @@ function EscritorioDashboard({
       minWidth: 18,
       textAlign: "right"
     }
-  }, n)))))), recientes.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, n)))))), notasRecientes.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--surface)",
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+      padding: "16px 20px",
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontFamily: "DM Mono, monospace",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      color: "var(--muted)",
+      marginBottom: 12
+    }
+  }, "Últimos movimientos"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 9
+    }
+  }, notasRecientes.map((b, i) => /*#__PURE__*/React.createElement("div", {
+    key: b.id || i,
+    style: {
+      borderLeft: "2px solid " + col,
+      paddingLeft: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--muted)"
+    }
+  }, fd(b.fecha), " · ", b.patrocinio.nombre), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--text)",
+      lineHeight: 1.55,
+      marginTop: 1
+    }
+  }, b.texto))))), recientes.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--surface)",
       border: "1px solid var(--border)",
@@ -6941,7 +7828,7 @@ function ConfigPatrocinios({
   return /*#__PURE__*/React.createElement(Modal, {
     open: open,
     onClose: onClose,
-    title: "⚙ Configuración de Patrocinios",
+    title: "Configuración de Patrocinios",
     wide: true
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6958,13 +7845,19 @@ function ConfigPatrocinios({
     }
   }, "Personas a cargo"), /*#__PURE__*/React.createElement(Row2, null, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: {
-      display: "block",
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
       fontSize: 11,
       color: ESC_COLOR["1"],
       marginBottom: 5,
       fontWeight: 700
     }
-  }, "☎ Escritorio 1", ESC1_SUFIJO), /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoTel,
+    size: 12,
+    color: ESC_COLOR["1"]
+  }), " Escritorio 1", ESC1_SUFIJO), /*#__PURE__*/React.createElement("input", {
     value: nom1,
     onChange: e => setNom1(e.target.value),
     style: {
@@ -6979,13 +7872,19 @@ function ConfigPatrocinios({
     }
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: {
-      display: "block",
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
       fontSize: 11,
       color: ESC_COLOR["2"],
       marginBottom: 5,
       fontWeight: 700
     }
-  }, "▪ Escritorio 2"), /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoCuadro,
+    size: 12,
+    color: ESC_COLOR["2"]
+  }), " Escritorio 2"), /*#__PURE__*/React.createElement("input", {
     value: nom2,
     onChange: e => setNom2(e.target.value),
     style: {
@@ -7024,7 +7923,7 @@ function ConfigPatrocinios({
       color: "var(--text)",
       marginBottom: 6
     }
-  }, cargaInicial ? "⚙ Modo carga inicial ACTIVO" : "✓ Reparto automático ACTIVO"), /*#__PURE__*/React.createElement("div", {
+  }, cargaInicial ? "Modo carga inicial activo" : "Reparto automático activo"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "var(--muted)",
@@ -7173,7 +8072,7 @@ function InformeDiario({
 
   // Todo lo del día
   const presosHoy = (data.presos || []).filter(p => p.ingreso === hoyISO);
-  const detenidos = (data.presos || []).filter(p => (p.badges || []).some(b => b.includes("detenido") || b.includes("s_det")) || p.estado === "detenido");
+  const estG = contarEstados(data.presos);
   const escPresentadosHoy = (data.escritos || []).filter(e => e.fechaPresentacion === hoyISO);
   const escCreadosHoy = (data.escritos || []).filter(e => e.fechaCreacion === hoyISO && e.fechaPresentacion !== hoyISO);
   const escEnProceso = (data.escritos || []).filter(e => e.status === "en_proceso");
@@ -7193,8 +8092,9 @@ function InformeDiario({
   let txt = SEP + "\n📋 INFORME DIARIO — DEFENSORÍA\n" + fechaStr.toUpperCase() + "\n" + SEP + "\n\n";
   txt += "📊 SITUACIÓN GENERAL\n";
   txt += "• Total imputados activos: " + (data.presos?.length || 0) + "\n";
-  txt += "• Detenidos: " + detenidos.length + "\n";
-  txt += "• En libertad: " + ((data.presos?.length || 0) - detenidos.length) + "\n";
+  txt += "• Privados de libertad: " + estG.privado + " (" + estG.up + " en UP · " + estG.domiciliaria + " domiciliaria)\n";
+  txt += "• En libertad: " + estG.libre + "\n";
+  if (estG.sin) txt += "• Sin clasificar: " + estG.sin + "\n";
   txt += "• Patrocinios: " + (data.patrocinios?.length || 0) + "\n\n";
   txt += "🆕 INGRESOS DEL DÍA\n";
   if (presosHoy.length) presosHoy.forEach(p => {
@@ -7310,6 +8210,24 @@ function InformeDiario({
     txt += "📌 PLAZOS DE ESTA SEMANA (" + plazosProx.length + ")\n";
     plazosProx.forEach(x => {
       txt += "  • " + x.pl.descripcion + " — " + x.p.nombre + " · vence " + fd(x.pl.vencimiento) + " 10:00\n";
+    });
+    txt += "\n";
+  }
+  const pasosUrg = [];
+  (data.patrocinios || []).filter(p => !p.archivado).forEach(p => {
+    (p.pasos || []).filter(x => !x.cumplido && x.fechaLimite).forEach(x => {
+      const st = estadoPlazo(x.fechaLimite);
+      if (["vencido", "hoy", "manana"].includes(st.nivel)) pasosUrg.push({
+        x,
+        p,
+        st
+      });
+    });
+  });
+  if (pasosUrg.length) {
+    txt += "PASOS A SEGUIR — VENCEN YA (" + pasosUrg.length + ")\n";
+    pasosUrg.forEach(o => {
+      txt += "  • [" + o.st.label + "] " + o.x.descripcion + " — " + o.p.nombre + " (Esc. " + (o.p.escritorio || "?") + ")\n";
     });
     txt += "\n";
   }
@@ -7637,6 +8555,36 @@ function LoadingScreen({
   }, status));
 }
 
+// ── Banner de vista filtrada desde el buscador global ──
+function FocoBanner({
+  nombre,
+  onClear
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      padding: "10px 16px",
+      background: "rgba(212,175,55,0.12)",
+      border: "1.5px solid var(--gold)",
+      borderRadius: 10,
+      marginBottom: 14,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "var(--text)"
+    }
+  }, "Mostrando solo ", /*#__PURE__*/React.createElement("b", null, nombre)), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "ghost",
+    onClick: onClear
+  }, "Ver todos"));
+}
+
 // ─────────────────────────────────────────────────────────
 // ROOT APP
 // ─────────────────────────────────────────────────────────
@@ -7653,6 +8601,7 @@ function App() {
     inhabiles: []
   });
   const [cfg, setCfg] = useState({});
+  const [focusItem, setFocusItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadStatus, setLoadStatus] = useState("Conectando con Google Sheets...");
   const [toasts, setToasts] = useState([]);
@@ -7667,6 +8616,14 @@ function App() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }, []);
   const removeToast = id => setToasts(prev => prev.filter(t => t.id !== id));
+  const irA = useCallback((vista, id) => {
+    setFocusItem({
+      vista,
+      id
+    });
+    setView(vista);
+  }, []);
+  const limpiarFoco = useCallback(() => setFocusItem(null), []);
   const reload = useCallback(async entity => {
     try {
       const result = await api.getAll(entity);
@@ -7824,33 +8781,48 @@ function App() {
     setView: setView,
     openModal: openModal,
     reload: reload,
-    cfg: cfg
+    cfg: cfg,
+    irA: irA
   }), view === "presos" && /*#__PURE__*/React.createElement(PresosView, {
     data: data,
-    reload: reload
+    reload: reload,
+    foco: focusItem?.vista === "presos" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   }), view === "escritos" && /*#__PURE__*/React.createElement(EscritosView, {
     data: data,
-    reload: reload
+    reload: reload,
+    foco: focusItem?.vista === "escritos" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   }), view === "tareas" && /*#__PURE__*/React.createElement(TareasView, {
     data: data,
-    reload: reload
+    reload: reload,
+    foco: focusItem?.vista === "tareas" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   }), view === "vistas" && /*#__PURE__*/React.createElement(VistasView, {
     data: data,
-    reload: reload
+    reload: reload,
+    foco: focusItem?.vista === "vistas" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   }), view === "videollamadas" && /*#__PURE__*/React.createElement(VideollamadasView, {
     data: data,
-    reload: reload
+    reload: reload,
+    foco: focusItem?.vista === "videollamadas" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   }), view === "calendario" && /*#__PURE__*/React.createElement(CalendarioView, {
     data: data,
     reload: reload
   }), view === "novedades" && /*#__PURE__*/React.createElement(NovedadesView, {
     data: data,
-    reload: reload
+    reload: reload,
+    foco: focusItem?.vista === "novedades" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   }), view === "patrocinios" && /*#__PURE__*/React.createElement(PatrociniosView, {
     data: data,
     reload: reload,
     cfg: cfg,
-    reloadCfg: reloadCfg
+    reloadCfg: reloadCfg,
+    foco: focusItem?.vista === "patrocinios" ? focusItem.id : null,
+    limpiarFoco: limpiarFoco
   })), modal === "informeDiario" && /*#__PURE__*/React.createElement(InformeDiario, {
     data: data,
     onClose: closeModal
