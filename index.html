@@ -8520,17 +8520,29 @@ function LoadingScreen({
       alignItems: "center",
       justifyContent: "center",
       background: "var(--bg)",
-      gap: 20
+      gap: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "Lora, serif",
-      fontSize: 36,
+      fontSize: 38,
       fontWeight: 700,
-      color: "#ffffff",
-      letterSpacing: "-0.02em"
+      color: "#000000",
+      letterSpacing: "-0.02em",
+      lineHeight: 1.1
     }
   }, "DefensorIA"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "DM Sans, sans-serif",
+      fontSize: 14,
+      color: "#000000",
+      marginTop: 4
+    }
+  }, "by Cristian Casas Caro")), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 200,
       height: 3,
@@ -8549,7 +8561,7 @@ function LoadingScreen({
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
-      color: "rgba(255,255,255,0.6)",
+      color: "var(--muted)",
       fontFamily: "DM Mono, monospace"
     }
   }, status));
