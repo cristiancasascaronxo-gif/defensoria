@@ -850,7 +850,8 @@ const Btn = ({
   variant = "primary",
   small,
   style: s = {},
-  disabled
+  disabled,
+  title
 }) => {
   const base = {
     border: "none",
@@ -898,6 +899,7 @@ const Btn = ({
   return /*#__PURE__*/React.createElement("button", {
     onClick: onClick,
     disabled: disabled,
+    title: title,
     style: {
       ...base,
       ...variants[variant],
@@ -1011,7 +1013,7 @@ function Sidebar({
       textTransform: "uppercase",
       letterSpacing: "0.1em"
     }
-  }, "Defensoría Penal")), /*#__PURE__*/React.createElement("nav", {
+  }, "Defensoría Pública")), /*#__PURE__*/React.createElement("nav", {
     style: {
       flex: 1,
       padding: "12px 10px",
@@ -1097,6 +1099,19 @@ function Dashboard({
   const [limpiezaOpen, setLimpiezaOpen] = useState(false);
   const noArch = arr => (arr || []).filter(x => !x.archivado);
   const est = contarEstados(data.presos);
+  const escEnProceso = noArch(data.escritos).filter(e => e.status === "en_proceso").length;
+  const escPresentados = noArch(data.escritos).filter(e => e.status === "presentado").length;
+  const vistasPend = noArch(data.vistas).filter(v => v.estado === "pendiente").length;
+  const vlAgendadas = noArch(data.vlGlobal).filter(v => v.estado === "pendiente" || v.estado === "confirmado").length;
+  const vlConfirmadas = noArch(data.vlGlobal).filter(v => v.estado === "confirmado").length;
+  const patrs = noArch(data.patrocinios);
+  const patActivos = patrs.length;
+  const patN1 = patrs.filter(p => String(p.escritorio) === "1" && p.cuentaBalance !== false).length;
+  const patN2 = patrs.filter(p => String(p.escritorio) === "2" && p.cuentaBalance !== false).length;
+  const patPlazos = patrs.reduce((s, p) => s + (p.plazos || []).filter(x => !x.cumplido).length, 0);
+  const _hoy = today();
+  const vistasVencidas = noArch(data.vistas).filter(v => v.estado === "pendiente" && v.fechaVencimiento && v.fechaVencimiento < _hoy).length;
+  const vlPasadas = noArch(data.vlGlobal).filter(v => v.fecha && v.fecha < _hoy).length;
   const tareasUrg = noArch(data.tareas).filter(t => t.estado !== "completada").sort((a, b) => ({
     alta: 0,
     media: 1,
@@ -1544,10 +1559,10 @@ function Dashboard({
     small: true,
     variant: "ghost",
     onClick: () => setLimpiezaOpen(true)
-  }, "🧹 Limpiar")), /*#__PURE__*/React.createElement("div", {
+  }, "Limpiar")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
+      gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
       gap: 14,
       marginBottom: 24
     }
@@ -1558,22 +1573,28 @@ function Dashboard({
     onClick: () => setView("presos")
   }), /*#__PURE__*/React.createElement(StatCard, {
     label: "Escritos en curso",
-    value: data.escritos?.filter(e => e.status === "en_proceso").length || 0,
-    sub: `${data.escritos?.filter(e => e.status === "presentado").length || 0} presentados`,
+    value: escEnProceso,
+    sub: escPresentados + " ya presentado" + (escPresentados !== 1 ? "s" : ""),
     color: "var(--purple)",
     onClick: () => setView("escritos")
   }), /*#__PURE__*/React.createElement(StatCard, {
     label: "Vistas pendientes",
-    value: data.vistas?.filter(v => v.estado === "pendiente").length || 0,
-    sub: `${data.tareas?.filter(t => t.estado !== "completada" && t.prioridad === "alta").length || 0} tareas urgentes`,
+    value: vistasPend,
+    sub: vistasVencidas > 0 ? vistasVencidas + " vencida" + (vistasVencidas !== 1 ? "s" : "") : "Ninguna vencida",
     color: "#e67e22",
     onClick: () => setView("vistas")
   }), /*#__PURE__*/React.createElement(StatCard, {
-    label: "VL agendadas",
-    value: data.vlGlobal?.filter(v => v.estado === "pendiente" || v.estado === "confirmado").length || 0,
-    sub: `${data.patrocinios?.length || 0} patrocinios activos`,
+    label: "Videollamadas",
+    value: vlAgendadas,
+    sub: vlConfirmadas + " confirmada" + (vlConfirmadas !== 1 ? "s" : "") + (vlPasadas > 0 ? " · " + vlPasadas + " ya pasada" + (vlPasadas !== 1 ? "s" : "") : ""),
     color: "#3498db",
     onClick: () => setView("videollamadas")
+  }), /*#__PURE__*/React.createElement(StatCard, {
+    label: "Patrocinios",
+    value: patActivos,
+    sub: "Esc. 1: " + patN1 + " · Esc. 2: " + patN2 + (patPlazos > 0 ? " · " + patPlazos + " plazo" + (patPlazos !== 1 ? "s" : "") : ""),
+    color: "#27ae60",
+    onClick: () => setView("patrocinios")
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -1581,7 +1602,7 @@ function Dashboard({
       gap: 16
     }
   }, /*#__PURE__*/React.createElement(Panel, {
-    title: "⚑ Tareas urgentes",
+    title: "Tareas urgentes",
     onViewAll: () => setView("tareas")
   }, tareasUrg.length ? tareasUrg.map(t => /*#__PURE__*/React.createElement(ExpandRow, {
     key: t.id,
@@ -1602,7 +1623,7 @@ function Dashboard({
       color: "var(--muted)"
     }
   }, "Sin tareas urgentes ✓")), /*#__PURE__*/React.createElement(Panel, {
-    title: "◧ Próximas vistas",
+    title: "Próximas vistas",
     onViewAll: () => setView("vistas")
   }, proxVistas.length ? proxVistas.map(v => /*#__PURE__*/React.createElement(ExpandRow, {
     key: v.id,
@@ -1624,7 +1645,7 @@ function Dashboard({
       color: "var(--muted)"
     }
   }, "Sin vistas pendientes ✓")), /*#__PURE__*/React.createElement(Panel, {
-    title: "✍ Escritos en curso",
+    title: "Escritos en curso",
     onViewAll: () => setView("escritos")
   }, escPend.length ? escPend.map(e => /*#__PURE__*/React.createElement(ExpandRow, {
     key: e.id,
@@ -1645,7 +1666,7 @@ function Dashboard({
       color: "var(--muted)"
     }
   }, "Sin escritos en proceso ✓")), /*#__PURE__*/React.createElement(Panel, {
-    title: "◈ Videollamadas",
+    title: "Videollamadas",
     onAdd: () => openModal("importarVL"),
     onViewAll: () => setView("videollamadas")
   }, proxVL.length ? proxVL.map(v => /*#__PURE__*/React.createElement(ExpandRow, {
@@ -1674,10 +1695,10 @@ function Dashboard({
     small: true,
     variant: "ghost",
     onClick: () => openModal("importarVL")
-  }, "📧 Importar mail")))), /*#__PURE__*/React.createElement(Modal, {
+  }, "Importar mail")))), /*#__PURE__*/React.createElement(Modal, {
     open: limpiezaOpen,
     onClose: () => setLimpiezaOpen(false),
-    title: "🧹 Limpiar registros pasados"
+    title: "Limpiar registros pasados"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
@@ -2004,29 +2025,6 @@ const ALL_BADGE_GROUPS = [{
   title: "Extra",
   badges: EXTRA_BADGES
 }];
-
-// Flujo de transiciones posibles por estado
-const TRANSICIONES = {
-  "procesado": ["detenido", "excarcelado", "condenado", "sobreseido"],
-  "detenido": ["procesado", "excarcelado", "condenado", "sobreseido"],
-  "excarcelado": ["detenido", "procesado", "condenado", "sobreseido"],
-  "condenado": ["detenido", "excarcelado", "sobreseido"],
-  "sobreseido": ["procesado", "detenido"]
-};
-const ESTADO_COLORS = {
-  detenido: "#c62828",
-  procesado: "#1565c0",
-  excarcelado: "#2e7d32",
-  condenado: "#4a148c",
-  sobreseido: "#546e7a"
-};
-const ESTADO_LABELS = {
-  detenido: "Detenido",
-  procesado: "Procesado",
-  excarcelado: "Excarcelado",
-  condenado: "Condenado",
-  sobreseido: "Sobreseído"
-};
 const NumBadge = ({
   badge,
   small,
@@ -2474,10 +2472,12 @@ function PresosView({
     }, isOpen ? "▲" : "▼"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
+      title: "Editar datos y hashtags",
       onClick: e => openEdit(p, e)
     }, "✏ Tags"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "danger",
+      title: "Eliminar imputado",
       onClick: e => del(p.id, e)
     }, "✕"))), isOpen && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2752,30 +2752,6 @@ function PresosView({
     disabled: saving
   }, saving ? "Guardando..." : form.id ? "Guardar cambios" : "Crear imputado"))));
 }
-const InfoRow = ({
-  label,
-  value
-}) => /*#__PURE__*/React.createElement("div", {
-  style: {
-    display: "flex",
-    gap: 12
-  }
-}, /*#__PURE__*/React.createElement("span", {
-  style: {
-    fontSize: 11,
-    color: "var(--muted)",
-    fontFamily: "DM Mono, monospace",
-    textTransform: "uppercase",
-    width: 110,
-    flexShrink: 0,
-    paddingTop: 2
-  }
-}, label), /*#__PURE__*/React.createElement("span", {
-  style: {
-    fontSize: 13,
-    color: "var(--text)"
-  }
-}, value || "—"));
 
 // ─────────────────────────────────────────────────────────
 // ESCRITOS VIEW
@@ -3007,10 +2983,12 @@ function EscritosView({
     }, /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
+      title: "Editar escrito",
       onClick: () => openEdit(e)
     }, "✏"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "danger",
+      title: "Eliminar escrito",
       onClick: () => del(e.id)
     }, "✕"))));
   }), !list.length && /*#__PURE__*/React.createElement("div", {
@@ -3318,10 +3296,12 @@ function TareasView({
     }, isOpen ? "▲" : "▼"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "ghost",
+      title: "Editar tarea",
       onClick: e => openEdit(t, e)
     }, "✏"), /*#__PURE__*/React.createElement(Btn, {
       small: true,
       variant: "danger",
+      title: "Eliminar tarea",
       onClick: e => del(t.id, e)
     }, "✕"))), isOpen && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -3833,6 +3813,7 @@ function VistasView({
   }, /*#__PURE__*/React.createElement(Btn, {
     small: true,
     variant: "ghost",
+    title: "Editar vista",
     onClick: () => {
       setForm({
         ...v
@@ -3842,6 +3823,7 @@ function VistasView({
   }, "✏"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     variant: "danger",
+    title: "Eliminar vista",
     onClick: () => del(v.id)
   }, "✕")))), !list.length && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4052,6 +4034,7 @@ function NovedadesView({
   }, /*#__PURE__*/React.createElement(Btn, {
     small: true,
     variant: "ghost",
+    title: "Editar novedad",
     onClick: () => {
       setForm({
         ...n
@@ -4061,6 +4044,7 @@ function NovedadesView({
   }, "✏"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     variant: "danger",
+    title: "Eliminar novedad",
     onClick: () => del(n.id)
   }, "✕")))), !list.length && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4364,9 +4348,9 @@ function VideollamadasView({
       setSolicitudOpen(true);
       setSolStep("select");
     }
-  }, "📨 Solicitar VL"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Solicitar VL"), /*#__PURE__*/React.createElement(Btn, {
     onClick: () => setImportModal(true)
-  }, "📧 Importar mail de Karina")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
+  }, "Importar mail de turnos")), focoItem && /*#__PURE__*/React.createElement(FocoBanner, {
     nombre: focoItem.nombre,
     onClear: limpiarFoco
   })), /*#__PURE__*/React.createElement("div", {
@@ -4451,6 +4435,7 @@ function VideollamadasView({
   }, "Realizada"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     variant: "danger",
+    title: "Cancelar videollamada",
     onClick: () => changeStatus(v, "cancelado")
   }, "✕")))), !list.length && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4461,7 +4446,7 @@ function VideollamadasView({
   }, "No hay videollamadas agendadas")), /*#__PURE__*/React.createElement(Modal, {
     open: solicitudOpen,
     onClose: closeSolicitud,
-    title: "📨 Solicitar Videollamadas",
+    title: "Solicitar videollamadas",
     wide: true
   }, solStep === "select" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     style: {
@@ -4717,14 +4702,14 @@ function VideollamadasView({
       navigator.clipboard.writeText(buildMail());
       toast("Mail copiado ✓");
     }
-  }, "📋 Copiar mail")))), /*#__PURE__*/React.createElement(Modal, {
+  }, "Copiar mail")))), /*#__PURE__*/React.createElement(Modal, {
     open: importModal,
     onClose: () => {
       setImportModal(false);
       setParsedTurnos([]);
       setMailText("");
     },
-    title: "📧 Importar turnos — Mail de Karina Martín",
+    title: "Importar turnos desde el mail",
     wide: true
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4760,7 +4745,7 @@ function VideollamadasView({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     onClick: parseMail
-  }, "🔍 Extraer turnos"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Extraer turnos"), /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     onClick: () => {
       setMailText("");
@@ -8347,15 +8332,21 @@ function InformeDefensoria({
   const tipoLabel = tipo => ESCRITO_TIPOS.find(t => t.val === tipo)?.label || tipo;
   const generar = () => {
     const sep = "─".repeat(48);
-    let t = `DEFENSORÍA PENAL — INFORME DE GESTIÓN\nPeríodo: ${fd(desde)} al ${fd(hasta)}\nGenerado: ${new Date().toLocaleString("es-AR")}\n${"═".repeat(48)}\n\n`;
+    let t = `DEFENSORÍA PÚBLICA — INFORME DE GESTIÓN\nPeríodo: ${fd(desde)} al ${fd(hasta)}\nGenerado: ${new Date().toLocaleString("es-AR")}\n${"═".repeat(48)}\n\n`;
     if (chks.stats) {
-      const det = (data.presos || []).filter(p => p.estado === "detenido").length;
-      t += `ESTADÍSTICAS\n• Total asistidos: ${data.presos?.length || 0}\n  - Detenidos: ${det}\n  - En libertad: ${(data.presos?.length || 0) - det}\n  - Con antecedentes: ${(data.presos || []).filter(p => p.reincidente).length}\n• Patrocinios: ${data.patrocinios?.length || 0}\n${sep}\n\n`;
+      const e = contarEstados(data.presos);
+      const pats = (data.patrocinios || []).filter(p => !p.archivado);
+      const q1 = pats.filter(p => String(p.escritorio) === "1" && p.cuentaBalance !== false).length;
+      const q2 = pats.filter(p => String(p.escritorio) === "2" && p.cuentaBalance !== false).length;
+      t += `ESTADÍSTICAS\n• Imputados: ${e.privado + e.libre + e.sin}\n  - Privados de libertad: ${e.privado} (${e.up} en UP · ${e.domiciliaria} domiciliaria)\n  - En libertad: ${e.libre}\n`;
+      if (e.sin) t += `  - Sin clasificar: ${e.sin}\n`;
+      t += `• Patrocinios activos: ${pats.length}\n  - Escritorio 1${ESC1_SUFIJO}: ${q1}\n  - Escritorio 2: ${q2}\n${sep}\n\n`;
     }
     if (chks.presos) {
-      const ing = (data.presos || []).filter(p => inR(p.ingreso));
-      const det = (data.presos || []).filter(p => p.estado === "detenido");
-      t += `IMPUTADOS\nCartera: ${data.presos?.length || 0} · Detenidos: ${det.length}\n`;
+      const activos = (data.presos || []).filter(p => !p.archivado);
+      const ing = activos.filter(p => inR(p.ingreso));
+      const e = contarEstados(data.presos);
+      t += `IMPUTADOS\nCartera: ${activos.length} · Privados de libertad: ${e.privado}\n`;
       if (ing.length) {
         t += `Ingresos en período (${ing.length}):\n`;
         ing.forEach(p => {
@@ -8413,10 +8404,25 @@ function InformeDefensoria({
       t += `\n${sep}\n\n`;
     }
     if (chks.patrocinios) {
-      t += `PATROCINIOS (${data.patrocinios?.length || 0})\n`;
-      (data.patrocinios || []).forEach(p => {
-        t += `  • ${p.nombre} — ${p.tipoCausa || ""}${p.expediente ? " — " + p.expediente : ""}${p.juzgado ? " — " + p.juzgado : ""}\n`;
+      const pats = (data.patrocinios || []).filter(p => !p.archivado);
+      t += `PATROCINIOS (${pats.length})\n`;
+      ["1", "2"].forEach(nEsc => {
+        const grupo = pats.filter(p => String(p.escritorio) === nEsc);
+        if (!grupo.length) return;
+        t += `\nEscritorio ${nEsc}${nEsc === "1" ? ESC1_SUFIJO : ""} (${grupo.length}):\n`;
+        grupo.forEach(p => {
+          const ab = (p.plazos || []).filter(x => !x.cumplido).length;
+          t += `  • ${p.nombre} — ${p.tipoCausa || "sin tipo"}${p.expediente ? " — Exp./SAC " + p.expediente : ""}${ab ? " — " + ab + " plazo" + (ab !== 1 ? "s" : "") + " pendiente" + (ab !== 1 ? "s" : "") : ""}\n`;
+        });
       });
+      const sinEsc = pats.filter(p => !p.escritorio);
+      if (sinEsc.length) {
+        t += `\nSin escritorio asignado (${sinEsc.length}):\n`;
+        sinEsc.forEach(p => {
+          t += `  • ${p.nombre}\n`;
+        });
+      }
+      t += `\n`;
     }
     t += `${"═".repeat(48)}\nGenerado por DefensorIA`;
     setOutput(t);
@@ -8448,7 +8454,7 @@ function InformeDefensoria({
   return /*#__PURE__*/React.createElement(Modal, {
     open: true,
     onClose: onClose,
-    title: "🏛 Informe Defensoría General",
+    title: "Informe Defensoría General",
     wide: true
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8513,7 +8519,7 @@ function InformeDefensoria({
       gap: "8px 20px",
       marginBottom: 16
     }
-  }, checkRow("presos", "👥 Imputados / Detenidos"), checkRow("escritos", "✍ Escritos"), checkRow("vistas", "⚖ Vistas y audiencias"), checkRow("resoluciones", "📄 Resoluciones"), checkRow("patrocinios", "◍ Patrocinios"), checkRow("vl", "📹 Videollamadas"), checkRow("novedades", "📌 Novedades"), checkRow("stats", "📊 Estadísticas")), /*#__PURE__*/React.createElement("div", {
+  }, checkRow("presos", "👥 Imputados / Detenidos"), checkRow("escritos", "✍ Escritos"), checkRow("vistas", "Vistas y audiencias"), checkRow("resoluciones", "📄 Resoluciones"), checkRow("patrocinios", "◍ Patrocinios"), checkRow("vl", "📹 Videollamadas"), checkRow("novedades", "📌 Novedades"), checkRow("stats", "📊 Estadísticas")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -8715,20 +8721,24 @@ function App() {
     loadAll();
   }, [loadAll]);
 
-  // Recordatorio 13:45
+  // Recordatorio del informe diario a las 13:45 (hora argentina, dias habiles)
   useEffect(() => {
     let shown = false;
     const check = () => {
-      const n = new Date();
-      if (n.getHours() === 13 && n.getMinutes() === 45 && !shown) {
+      const n = new Date(new Date().toLocaleString("en-US", {
+        timeZone: "America/Argentina/Buenos_Aires"
+      }));
+      const dow = n.getDay();
+      if (dow === 0 || dow === 6) return;
+      if (n.getHours() === 13 && n.getMinutes() >= 45 && n.getMinutes() < 47 && !shown) {
         shown = true;
         setModal("informeDiario");
         setTimeout(() => {
           shown = false;
-        }, 70000);
+        }, 180000);
       }
     };
-    const interval = setInterval(check, 30000);
+    const interval = setInterval(check, 60000);
     return () => clearInterval(interval);
   }, []);
   const openModal = name => setModal(name);
