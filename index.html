@@ -5504,6 +5504,7 @@ function PatrociniosView({
   const [notaFecha, setNotaFecha] = useState(today());
   const [histOpen, setHistOpen] = useState(null);
   const [cfgOpen, setCfgOpen] = useState(false);
+  const [sugAbierto, setSugAbierto] = useState(false);
   const [miEscritorio, setMiEscritorio] = useState(null);
   const f = (k, v) => setForm(p => ({
     ...p,
@@ -6002,9 +6003,35 @@ function PatrociniosView({
   }, "cambiar"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      gap: 8
+      gap: 8,
+      flexWrap: "wrap"
     }
   }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => {
+      setSugAbierto(true);
+      setTimeout(() => {
+        const el = document.getElementById("seccion-sugerencias");
+        if (el) el.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }, 60);
+    }
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoBuzon,
+    size: 13
+  }), " Sugerencias", (data.sugerencias || []).filter(s => !s.visto).length > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 5,
+      fontSize: 10,
+      fontWeight: 700,
+      padding: "1px 6px",
+      borderRadius: 9,
+      background: "#e74c3c",
+      color: "#fff"
+    }
+  }, (data.sugerencias || []).filter(s => !s.visto).length)), /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     onClick: () => setCfgOpen(true)
   }, "Configuración"), /*#__PURE__*/React.createElement(Btn, {
@@ -7425,7 +7452,9 @@ function PatrociniosView({
     data: data,
     reload: reload,
     miEscritorio: miEscritorio,
-    cfg: cfg
+    cfg: cfg,
+    abierto: sugAbierto,
+    setAbierto: setSugAbierto
   }), /*#__PURE__*/React.createElement(ConfigPatrocinios, {
     open: cfgOpen,
     onClose: () => setCfgOpen(false),
@@ -7443,12 +7472,13 @@ function Sugerencias({
   data,
   reload,
   miEscritorio,
-  cfg
+  cfg,
+  abierto,
+  setAbierto
 }) {
   const {
     toast
   } = useApp();
-  const [abierto, setAbierto] = useState(false);
   const [nueva, setNueva] = useState("");
   const [respondiendo, setRespondiendo] = useState(null);
   const [respTexto, setRespTexto] = useState("");
@@ -7654,8 +7684,10 @@ function Sugerencias({
     onClick: () => borrar(s)
   }, "Borrar")))));
   return /*#__PURE__*/React.createElement("div", {
+    id: "seccion-sugerencias",
     style: {
-      marginTop: 44
+      marginTop: 44,
+      scrollMarginTop: 20
     }
   }, /*#__PURE__*/React.createElement("div", {
     onClick: () => setAbierto(!abierto),
