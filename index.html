@@ -975,7 +975,8 @@ function Sidebar({
     tareas: data.tareas?.filter(t => t.estado !== "completada").length || 0,
     vistas: data.vistas?.filter(v => v.estado === "pendiente").length || 0,
     escritos: data.escritos?.filter(e => e.status === "en_proceso").length || 0,
-    videollamadas: data.vlGlobal?.filter(v => v.estado === "pendiente" || v.estado === "confirmado").length || 0
+    videollamadas: data.vlGlobal?.filter(v => v.estado === "pendiente" || v.estado === "confirmado").length || 0,
+    patrocinios: data.sugerencias?.filter(s => !s.visto).length || 0
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1109,6 +1110,7 @@ function Dashboard({
   const patN1 = patrs.filter(p => String(p.escritorio) === "1" && p.cuentaBalance !== false).length;
   const patN2 = patrs.filter(p => String(p.escritorio) === "2" && p.cuentaBalance !== false).length;
   const patPlazos = patrs.reduce((s, p) => s + (p.plazos || []).filter(x => !x.cumplido).length, 0);
+  const sugSinVer = (data.sugerencias || []).filter(s => !s.visto);
   const _hoy = today();
   const vistasVencidas = noArch(data.vistas).filter(v => v.estado === "pendiente" && v.fechaVencimiento && v.fechaVencimiento < _hoy).length;
   const vlPasadas = noArch(data.vlGlobal).filter(v => v.fecha && v.fecha < _hoy).length;
@@ -1537,7 +1539,51 @@ function Dashboard({
       marginTop: 2,
       fontStyle: "italic"
     }
-  }, "↳ coincide en: ", r.donde)))))), totalVencidos > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "↳ coincide en: ", r.donde)))))), sugSinVer.length > 0 && /*#__PURE__*/React.createElement("div", {
+    onClick: () => setView("patrocinios"),
+    style: {
+      padding: "12px 18px",
+      background: "rgba(231,76,60,0.08)",
+      border: "1.5px solid #e74c3c66",
+      borderRadius: 10,
+      marginBottom: 16,
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+      cursor: "pointer"
+    },
+    onMouseEnter: e => e.currentTarget.style.borderColor = "#e74c3c",
+    onMouseLeave: e => e.currentTarget.style.borderColor = "#e74c3c66"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 9,
+      height: 9,
+      borderRadius: "50%",
+      background: "#e74c3c",
+      flexShrink: 0
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 200
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: "var(--text)"
+    }
+  }, sugSinVer.length, " sugerencia", sugSinVer.length !== 1 ? "s" : "", " sin leer"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "var(--muted)",
+      marginTop: 2
+    }
+  }, sugSinVer.slice(0, 2).map(s => String(s.texto).slice(0, 70)).join(" · "), sugSinVer.length > 2 ? " · y " + (sugSinVer.length - 2) + " más" : "")), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "ghost"
+  }, "Ver en Patrocinios")), totalVencidos > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "11px 18px",
       background: "rgba(230,126,34,0.08)",
@@ -5330,6 +5376,11 @@ const IcoCandado = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__P
 const IcoCheck = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
   d: "M5 12l5 5L20 7"
 }));
+const IcoBuzon = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+  d: "M4 9l8-5 8 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 9l8 6 8-6"
+}));
 const ChkBox = ({
   checked,
   onClick,
@@ -5450,6 +5501,7 @@ function PatrociniosView({
   const [pasoForm, setPasoForm] = useState({});
   const [notaOpen, setNotaOpen] = useState(null);
   const [notaTexto, setNotaTexto] = useState("");
+  const [notaFecha, setNotaFecha] = useState(today());
   const [histOpen, setHistOpen] = useState(null);
   const [cfgOpen, setCfgOpen] = useState(false);
   const [miEscritorio, setMiEscritorio] = useState(null);
@@ -5671,16 +5723,18 @@ function PatrociniosView({
     try {
       const entrada = {
         id: uid(),
-        fecha: today(),
+        fecha: notaFecha || today(),
         texto: notaTexto.trim(),
         por: miEscritorio
       };
+      const nuevas = [entrada, ...(p.bitacora || [])].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
       await api.update("patrocinios", p.id, {
         ...p,
-        bitacora: [entrada, ...(p.bitacora || [])]
+        bitacora: nuevas
       });
       setNotaOpen(null);
       setNotaTexto("");
+      setNotaFecha(today());
       await reload("patrocinios");
       toast("Nota agregada");
     } catch (e) {
@@ -6255,6 +6309,7 @@ function PatrociniosView({
       onClick: () => {
         setNotaOpen(p);
         setNotaTexto("");
+        setNotaFecha(today());
       }
     }, "Agregar nota")), bit.length === 0 && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -7126,6 +7181,7 @@ function PatrociniosView({
     onClose: () => {
       setNotaOpen(null);
       setNotaTexto("");
+      setNotaFecha(today());
     },
     title: "Agregar nota a la bitácora"
   }, notaOpen && /*#__PURE__*/React.createElement("div", {
@@ -7138,8 +7194,20 @@ function PatrociniosView({
     style: {
       color: "var(--text)"
     }
-  }, notaOpen.nombre)), /*#__PURE__*/React.createElement(Textarea, {
-    label: "Qué pasó hoy — " + fd(today()),
+  }, notaOpen.nombre)), /*#__PURE__*/React.createElement(Input, {
+    label: "Fecha de la actuación",
+    value: notaFecha,
+    onChange: setNotaFecha,
+    type: "date"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--muted)",
+      marginTop: -8,
+      marginBottom: 12
+    }
+  }, "Viene el día de hoy por defecto. Cambiala si estás cargando algo que pasó otro día."), /*#__PURE__*/React.createElement(Textarea, {
+    label: "Qué pasó",
     value: notaTexto,
     onChange: setNotaTexto,
     rows: 4,
@@ -7155,6 +7223,7 @@ function PatrociniosView({
     onClick: () => {
       setNotaOpen(null);
       setNotaTexto("");
+      setNotaFecha(today());
     }
   }, "Cancelar"), /*#__PURE__*/React.createElement(Btn, {
     onClick: saveNota,
@@ -7352,7 +7421,12 @@ function PatrociniosView({
     }
   }, "Cancelar"), /*#__PURE__*/React.createElement(Btn, {
     onClick: doTransfer
-  }, "Transferir")))), /*#__PURE__*/React.createElement(ConfigPatrocinios, {
+  }, "Transferir")))), /*#__PURE__*/React.createElement(Sugerencias, {
+    data: data,
+    reload: reload,
+    miEscritorio: miEscritorio,
+    cfg: cfg
+  }), /*#__PURE__*/React.createElement(ConfigPatrocinios, {
     open: cfgOpen,
     onClose: () => setCfgOpen(false),
     cfg: cfg,
@@ -7362,6 +7436,366 @@ function PatrociniosView({
     n1: n1,
     n2: n2
   }));
+}
+
+// ── Buzon de sugerencias del modulo Patrocinios ──
+function Sugerencias({
+  data,
+  reload,
+  miEscritorio,
+  cfg
+}) {
+  const {
+    toast
+  } = useApp();
+  const [abierto, setAbierto] = useState(false);
+  const [nueva, setNueva] = useState("");
+  const [respondiendo, setRespondiendo] = useState(null);
+  const [respTexto, setRespTexto] = useState("");
+  const [verResueltas, setVerResueltas] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const todas = data.sugerencias || [];
+  const pendientes = todas.filter(s => !s.resuelto).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  const resueltas = todas.filter(s => s.resuelto).sort((a, b) => String(b.fechaResuelto).localeCompare(String(a.fechaResuelto)));
+  const sinVer = todas.filter(s => !s.visto);
+
+  // Al abrir el panel, marcar como vistas las que no lo estaban
+  useEffect(() => {
+    if (!abierto || !sinVer.length) return;
+    (async () => {
+      try {
+        for (const s of sinVer) await api.update("sugerencias", s.id, {
+          ...s,
+          visto: true
+        });
+        await reload("sugerencias");
+      } catch (e) {}
+    })();
+  }, [abierto]);
+  const enviar = async () => {
+    if (!String(nueva).trim()) {
+      toast("Escribí la sugerencia primero", "warn");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.create("sugerencias", {
+        texto: nueva.trim(),
+        autor: miEscritorio || "—",
+        fecha: today(),
+        resuelto: false,
+        visto: false
+      });
+      setNueva("");
+      await reload("sugerencias");
+      toast("Sugerencia enviada");
+    } catch (e) {
+      toast(e.message, "error");
+    }
+    setSaving(false);
+  };
+  const responder = async s => {
+    if (!String(respTexto).trim()) {
+      toast("Escribí la respuesta", "warn");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.update("sugerencias", s.id, {
+        ...s,
+        respuesta: respTexto.trim(),
+        respondidoPor: miEscritorio || "—",
+        fechaRespuesta: today()
+      });
+      setRespondiendo(null);
+      setRespTexto("");
+      await reload("sugerencias");
+      toast("Respuesta guardada");
+    } catch (e) {
+      toast(e.message, "error");
+    }
+    setSaving(false);
+  };
+  const toggleResuelto = async s => {
+    await api.update("sugerencias", s.id, {
+      ...s,
+      resuelto: !s.resuelto,
+      fechaResuelto: !s.resuelto ? today() : null
+    });
+    await reload("sugerencias");
+  };
+  const borrar = async s => {
+    if (!confirm("¿Borrar esta sugerencia? No se puede recuperar.")) return;
+    await api.delete("sugerencias", s.id);
+    await reload("sugerencias");
+    toast("Sugerencia borrada");
+  };
+  const Tarjeta = ({
+    s
+  }) => /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--surface)",
+      border: "1px solid var(--border)",
+      borderLeft: "4px solid " + (s.resuelto ? "#27ae60" : s.respuesta ? "#2980b9" : "var(--gold)"),
+      borderRadius: 10,
+      padding: "13px 16px",
+      opacity: s.resuelto ? 0.7 : 1,
+      boxShadow: !s.visto && !s.resuelto ? "0 0 0 2px rgba(231,76,60,0.25)" : "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 11
+    }
+  }, /*#__PURE__*/React.createElement(ChkBox, {
+    checked: !!s.resuelto,
+    onClick: () => toggleResuelto(s),
+    color: "#27ae60",
+    title: s.resuelto ? "Volver a pendiente" : "Marcar como resuelta"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--muted)",
+      marginBottom: 3
+    }
+  }, fd(s.fecha), s.autor && s.autor !== "—" ? " · Escritorio " + s.autor : "", s.resuelto && s.fechaResuelto ? " · resuelta el " + fd(s.fechaResuelto) : ""), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--text)",
+      lineHeight: 1.6,
+      textDecoration: s.resuelto ? "line-through" : "none"
+    }
+  }, s.texto), s.respuesta && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 9,
+      padding: "9px 12px",
+      background: "var(--surface2)",
+      borderRadius: 8,
+      borderLeft: "3px solid #2980b9"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--muted)",
+      fontFamily: "DM Mono, monospace",
+      textTransform: "uppercase",
+      marginBottom: 3
+    }
+  }, "Respuesta", s.fechaRespuesta ? " · " + fd(s.fechaRespuesta) : "", s.respondidoPor && s.respondidoPor !== "—" ? " · Esc. " + s.respondidoPor : ""), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--text)",
+      lineHeight: 1.6
+    }
+  }, s.respuesta)), respondiendo === s.id ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: respTexto,
+    onChange: e => setRespTexto(e.target.value),
+    rows: 3,
+    placeholder: "Escribí la respuesta...",
+    style: {
+      width: "100%",
+      background: "var(--input-bg)",
+      border: "1.5px solid var(--border)",
+      borderRadius: 8,
+      padding: "9px 12px",
+      fontSize: 13,
+      color: "var(--text)",
+      outline: "none",
+      fontFamily: "DM Sans, sans-serif",
+      resize: "vertical",
+      boxSizing: "border-box"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      justifyContent: "flex-end",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "ghost",
+    onClick: () => {
+      setRespondiendo(null);
+      setRespTexto("");
+    }
+  }, "Cancelar"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => responder(s),
+    disabled: saving
+  }, saving ? "Guardando..." : "Guardar respuesta"))) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginTop: 10,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "ghost",
+    onClick: () => {
+      setRespondiendo(s.id);
+      setRespTexto(s.respuesta || "");
+    }
+  }, s.respuesta ? "Editar respuesta" : "Responder"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "danger",
+    title: "Borrar definitivamente",
+    onClick: () => borrar(s)
+  }, "Borrar")))));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 56,
+      paddingTop: 28,
+      borderTop: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAbierto(!abierto),
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: 0,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      fontFamily: "Lora, serif",
+      fontSize: 17,
+      fontWeight: 700,
+      color: "var(--text)"
+    }
+  }, /*#__PURE__*/React.createElement(Ico, {
+    d: IcoBuzon,
+    size: 17,
+    color: "var(--gold)"
+  }), "Sugerencias", sinVer.length > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      padding: "1px 8px",
+      borderRadius: 10,
+      background: "#e74c3c",
+      color: "#fff",
+      fontFamily: "DM Sans, sans-serif"
+    }
+  }, sinVer.length, " sin ver"), sinVer.length === 0 && pendientes.length > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      padding: "1px 8px",
+      borderRadius: 10,
+      background: "var(--gold)",
+      color: "#1a2744",
+      fontFamily: "DM Sans, sans-serif"
+    }
+  }, pendientes.length), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "var(--muted)"
+    }
+  }, abierto ? "▲" : "▼")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--muted)",
+      marginTop: 3
+    }
+  }, "Ideas, problemas o pedidos sobre el sistema. Cualquiera puede escribir y responder."))), abierto && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 18,
+      animation: "slideIn 0.15s ease"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: nueva,
+    onChange: e => setNueva(e.target.value),
+    rows: 3,
+    placeholder: "Escribí tu sugerencia...",
+    style: {
+      width: "100%",
+      background: "var(--input-bg)",
+      border: "1.5px solid var(--border)",
+      borderRadius: 10,
+      padding: "11px 14px",
+      fontSize: 13,
+      color: "var(--text)",
+      outline: "none",
+      fontFamily: "DM Sans, sans-serif",
+      resize: "vertical",
+      boxSizing: "border-box"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: enviar,
+    disabled: saving
+  }, saving ? "Enviando..." : "Enviar sugerencia"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 9
+    }
+  }, pendientes.map(s => /*#__PURE__*/React.createElement(Tarjeta, {
+    key: s.id,
+    s: s
+  })), !pendientes.length && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--muted)",
+      fontStyle: "italic",
+      padding: "10px 0"
+    }
+  }, "No hay sugerencias pendientes.")), resueltas.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setVerResueltas(!verResueltas),
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: 0,
+      fontSize: 12,
+      color: "var(--muted)",
+      textDecoration: "underline",
+      fontFamily: "DM Sans, sans-serif"
+    }
+  }, verResueltas ? "Ocultar" : "Ver", " resueltas (", resueltas.length, ")"), verResueltas && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 9,
+      marginTop: 12
+    }
+  }, resueltas.map(s => /*#__PURE__*/React.createElement(Tarjeta, {
+    key: s.id,
+    s: s
+  }))))));
 }
 
 // ── Dashboard de un escritorio ──
@@ -8234,6 +8668,103 @@ function InformeDiario({
     });
     txt += "\n";
   }
+  // ── Actividad de patrocinios en el dia ──
+  const patHoy = [],
+    notasHoy = [],
+    pasosHechosHoy = [],
+    plazosHechosHoy = [],
+    transfHoy = [];
+  (data.patrocinios || []).forEach(p => {
+    if (p.fechaAlta === hoyISO && !p.archivado) patHoy.push(p);
+    (p.bitacora || []).filter(b => b.fecha === hoyISO).forEach(b => notasHoy.push({
+      b,
+      p
+    }));
+    (p.pasos || []).filter(x => x.cumplido && x.fechaCumplido === hoyISO).forEach(x => pasosHechosHoy.push({
+      x,
+      p
+    }));
+    (p.plazos || []).filter(x => x.cumplido && x.fechaCumplido === hoyISO).forEach(x => plazosHechosHoy.push({
+      x,
+      p
+    }));
+    (p.historial || []).forEach(h => {
+      if (h.accion === "transferencia" && String(h.fecha).slice(0, 10) === hoyISO) transfHoy.push({
+        h,
+        p
+      });
+    });
+  });
+  if (patHoy.length) {
+    txt += "PATROCINIOS NUEVOS (" + patHoy.length + ")\n";
+    patHoy.forEach(p => {
+      txt += "  • " + p.nombre + " — " + (p.tipoCausa || "sin tipo") + " — Escritorio " + (p.escritorio || "?") + "\n";
+    });
+    txt += "\n";
+  }
+  if (notasHoy.length) {
+    txt += "MOVIMIENTOS EN PATROCINIOS (" + notasHoy.length + ")\n";
+    notasHoy.forEach(o => {
+      txt += "  • " + o.p.nombre + " (Esc. " + (o.p.escritorio || "?") + "): " + o.b.texto + "\n";
+    });
+    txt += "\n";
+  }
+  if (plazosHechosHoy.length) {
+    txt += "PLAZOS CUMPLIDOS HOY (" + plazosHechosHoy.length + ")\n";
+    plazosHechosHoy.forEach(o => {
+      txt += "  • " + o.x.descripcion + " — " + o.p.nombre + "\n";
+    });
+    txt += "\n";
+  }
+  if (pasosHechosHoy.length) {
+    txt += "PASOS REALIZADOS HOY (" + pasosHechosHoy.length + ")\n";
+    pasosHechosHoy.forEach(o => {
+      txt += "  • " + o.x.descripcion + " — " + o.p.nombre + "\n";
+    });
+    txt += "\n";
+  }
+  if (transfHoy.length) {
+    txt += "TRANSFERENCIAS ENTRE ESCRITORIOS (" + transfHoy.length + ")\n";
+    transfHoy.forEach(o => {
+      txt += "  • " + o.p.nombre + ": Escritorio " + o.h.desde + " → Escritorio " + o.h.hacia + "\n";
+    });
+    txt += "\n";
+  }
+
+  // ── Sugerencias ──
+  const sugs = data.sugerencias || [];
+  const sugHoy = sugs.filter(s => s.fecha === hoyISO);
+  const respHoy = sugs.filter(s => s.fechaRespuesta === hoyISO);
+  const sugResueltasHoy = sugs.filter(s => s.resuelto && s.fechaResuelto === hoyISO);
+  const sugSinVer = sugs.filter(s => !s.visto);
+  if (sugHoy.length) {
+    txt += "SUGERENCIAS NUEVAS (" + sugHoy.length + ")\n";
+    sugHoy.forEach(s => {
+      txt += "  • " + (s.autor && s.autor !== "—" ? "[Esc. " + s.autor + "] " : "") + s.texto + "\n";
+    });
+    txt += "\n";
+  }
+  if (respHoy.length) {
+    txt += "SUGERENCIAS RESPONDIDAS (" + respHoy.length + ")\n";
+    respHoy.forEach(s => {
+      txt += "  • " + String(s.texto).slice(0, 60) + " → " + s.respuesta + "\n";
+    });
+    txt += "\n";
+  }
+  if (sugResueltasHoy.length) {
+    txt += "SUGERENCIAS RESUELTAS (" + sugResueltasHoy.length + ")\n";
+    sugResueltasHoy.forEach(s => {
+      txt += "  • " + s.texto + "\n";
+    });
+    txt += "\n";
+  }
+  if (sugSinVer.length) {
+    txt += "SUGERENCIAS SIN LEER (" + sugSinVer.length + ")\n";
+    sugSinVer.forEach(s => {
+      txt += "  • " + fd(s.fecha) + " — " + s.texto + "\n";
+    });
+    txt += "\n";
+  }
   const pasosUrg = [];
   (data.patrocinios || []).filter(p => !p.archivado).forEach(p => {
     (p.pasos || []).filter(x => !x.cumplido && x.fechaLimite).forEach(x => {
@@ -8290,7 +8821,7 @@ function InformeDiario({
       fontSize: 11,
       color: "var(--muted)"
     }
-  }, "Incluye toda la actividad del día")), /*#__PURE__*/React.createElement("div", {
+  }, "Incluye toda la actividad del día: penal, patrocinios y sugerencias")), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--surface2)",
       border: "1px solid var(--border)",
@@ -8652,7 +9183,8 @@ function App() {
     patrocinios: [],
     escritos: [],
     vlGlobal: [],
-    inhabiles: []
+    inhabiles: [],
+    sugerencias: []
   });
   const [cfg, setCfg] = useState({});
   const [focusItem, setFocusItem] = useState(null);
@@ -8691,7 +9223,7 @@ function App() {
   }, [toast]);
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const entities = ["presos", "tareas", "novedades", "vistas", "patrocinios", "escritos", "vlGlobal", "inhabiles"];
+    const entities = ["presos", "tareas", "novedades", "vistas", "patrocinios", "escritos", "vlGlobal", "inhabiles", "sugerencias"];
     const newData = {};
     for (const entity of entities) {
       setLoadStatus(`Cargando ${entity}...`);
