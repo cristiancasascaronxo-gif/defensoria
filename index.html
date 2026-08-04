@@ -7655,30 +7655,32 @@ function Sugerencias({
   }, "Borrar")))));
   return /*#__PURE__*/React.createElement("div", {
     style: {
-      marginTop: 56,
-      paddingTop: 28,
-      borderTop: "1px solid var(--border)"
+      marginTop: 44
     }
   }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => setAbierto(!abierto),
     style: {
+      background: sinVer.length ? "rgba(231,76,60,0.07)" : "var(--surface)",
+      border: "1.5px solid " + (sinVer.length ? "#e74c3c66" : "var(--border)"),
+      borderRadius: 12,
+      padding: "16px 20px",
+      cursor: "pointer",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
       flexWrap: "wrap"
     }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setAbierto(!abierto),
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "none",
       border: "none",
-      cursor: "pointer",
       padding: 0,
       display: "inline-flex",
       alignItems: "center",
       gap: 8,
       fontFamily: "Lora, serif",
-      fontSize: 17,
+      fontSize: 18,
       fontWeight: 700,
       color: "var(--text)"
     }
@@ -7706,20 +7708,20 @@ function Sugerencias({
       color: "#1a2744",
       fontFamily: "DM Sans, sans-serif"
     }
-  }, pendientes.length), /*#__PURE__*/React.createElement("span", {
+  }, pendientes.length)), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 13,
-      color: "var(--muted)"
-    }
-  }, abierto ? "▲" : "▼")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
+      fontSize: 12,
       color: "var(--muted)",
       marginTop: 3
     }
-  }, "Ideas, problemas o pedidos sobre el sistema. Cualquiera puede escribir y responder."))), abierto && /*#__PURE__*/React.createElement("div", {
+  }, "Ideas, problemas o pedidos sobre el sistema. Cualquiera puede escribir y responder.")), /*#__PURE__*/React.createElement("span", {
     style: {
-      marginTop: 18,
+      fontSize: 15,
+      color: "var(--muted)"
+    }
+  }, abierto ? "▲" : "▼")), abierto && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 16,
       animation: "slideIn 0.15s ease"
     }
   }, /*#__PURE__*/React.createElement("div", {
